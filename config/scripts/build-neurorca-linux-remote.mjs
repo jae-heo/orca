@@ -38,12 +38,12 @@ function run(command, args, options = {}) {
   return result
 }
 
-function requireSuccess(result, label) {
+export function requireSuccess(result, label) {
   if (result.status !== 0) {
     const detail = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
     throw new Error(`${label} failed${detail ? `: ${detail}` : ''}`)
   }
-  return result.stdout.trim()
+  return (result.stdout ?? '').trim()
 }
 
 function git(args) {

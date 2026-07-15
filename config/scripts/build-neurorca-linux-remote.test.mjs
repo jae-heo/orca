@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { loadNeurorcaOperationsConfig } from './neurorca-operations-config.mjs'
-import { parseRemoteBuildArgs, renderRemoteBuildCommand } from './build-neurorca-linux-remote.mjs'
+import {
+  parseRemoteBuildArgs,
+  renderRemoteBuildCommand,
+  requireSuccess
+} from './build-neurorca-linux-remote.mjs'
 
 describe('Neurorca remote Linux build contract', () => {
   it('parses host and dry-run options', () => {
@@ -24,5 +28,9 @@ describe('Neurorca remote Linux build contract', () => {
     )
     expect(command).not.toContain("AppImage'.provenance.json")
     expect(command).not.toContain('reset --hard')
+  })
+
+  it('accepts successful inherited-stdio commands without captured stdout', () => {
+    expect(requireSuccess({ status: 0, stdout: null, stderr: null }, 'remote build')).toBe('')
   })
 })
