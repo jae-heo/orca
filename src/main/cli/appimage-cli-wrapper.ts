@@ -12,15 +12,15 @@ const APPIMAGE_CLI_SCRIPT = [
   '})();'
 ].join('')
 
-export function buildAppImageCliWrapper(appImagePath: string): string {
+export function buildAppImageCliWrapper(appImagePath: string, appName = 'Orca'): string {
   // Why: AppImage mounts resources under a fresh FUSE path per launch, so the
   // installed command must call the stable outer AppImage and resolve APPDIR.
   return `#!/usr/bin/env bash
 set -euo pipefail
 APPIMAGE=${quoteShell(appImagePath)}
 if [ ! -f "$APPIMAGE" ]; then
-  echo "Orca AppImage not found at $APPIMAGE" >&2
-  echo "If you moved the AppImage, re-run CLI registration from Orca Settings." >&2
+  echo "${appName} AppImage not found at $APPIMAGE" >&2
+  echo "If you moved the AppImage, re-run CLI registration from ${appName} Settings." >&2
   exit 1
 fi
 export ORCA_NODE_OPTIONS="\${NODE_OPTIONS-}"

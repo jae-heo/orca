@@ -1182,7 +1182,7 @@ function enableIncludePrerelease(): void {
 
 /** Menu-triggered check — delegates feedback to renderer toasts via userInitiated flag */
 export function checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
-  if (!app.isPackaged || is.dev) {
+  if (NEURORCA_BUILD || !app.isPackaged || is.dev) {
     sendStatus({ state: 'not-available', userInitiated: true })
     return
   }
@@ -1372,6 +1372,12 @@ export function setupAutoUpdater(
   _setPendingUpdateNudgeId = opts?.setPendingUpdateNudgeId ?? null
   _setDismissedUpdateNudgeId = opts?.setDismissedUpdateNudgeId ?? null
 
+  if (NEURORCA_BUILD) {
+    // Neurorca carries local patches, so installing an official Orca binary
+    // would silently remove them. Its update path is source sync + rebuild;
+    // a dedicated signed Neurorca release feed can replace this guard later.
+    return
+  }
   if (!app.isPackaged && !is.dev) {
     return
   }

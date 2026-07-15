@@ -426,7 +426,11 @@ function maybeAutoRenameBranchOnFirstWorkFromHook(event: {
   )
 }
 
-const devInstanceIdentity = getDevInstanceIdentity(is.dev)
+const devInstanceIdentity = getDevInstanceIdentity(
+  is.dev,
+  process.env,
+  NEURORCA_BUILD ? 'neurorca' : 'orca'
+)
 const devAgentHookEndpointNamespace = devInstanceIdentity.isDev
   ? devInstanceIdentity.appUserModelId
   : undefined

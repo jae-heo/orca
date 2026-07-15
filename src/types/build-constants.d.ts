@@ -20,3 +20,8 @@ declare const ORCA_POSTHOG_WRITE_KEY: string | null
 // point a packaged build at a staging server without re-running the
 // release pipeline.
 declare const ORCA_DIAGNOSTICS_TOKEN_URL: string | null
+
+// True only for the independently packaged Neurocore distribution. Keeping
+// this compile-time prevents a runtime environment variable from changing an
+// installed app's identity, data directory, CLI ownership, or update policy.
+declare const NEURORCA_BUILD: boolean

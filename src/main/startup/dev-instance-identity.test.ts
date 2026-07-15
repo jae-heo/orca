@@ -12,6 +12,14 @@ describe('dev-instance-identity', () => {
     })
   })
 
+  it('keeps the Neurorca package separate from official Orca', () => {
+    expect(getDevInstanceIdentity(false, {}, 'neurorca')).toMatchObject({
+      name: 'Neurorca',
+      isDev: false,
+      appUserModelId: 'com.neurocore.neurorca'
+    })
+  })
+
   it('derives a readable dev label from worktree and branch env', () => {
     const identity = getDevInstanceIdentity(true, {
       ORCA_DEV_REPO_ROOT: '/repo/worktrees/dev-indicator',

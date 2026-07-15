@@ -21,13 +21,16 @@ import { buildAppImageCliWrapper } from './appimage-cli-wrapper'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_MAC_COMMAND_PATH = '/usr/local/bin/orca'
+const DEFAULT_NEURORCA_MAC_COMMAND_PATH = '/usr/local/bin/neurorca'
 const DEV_COMMAND_NAME = 'orca-dev'
 const LINUX_COMMAND_NAME = 'orca-ide'
+const NEURORCA_COMMAND_NAME = 'neurorca'
 const LEGACY_LINUX_COMMAND_NAME = 'orca'
 const DEV_LAUNCHER_DIR = ['cli', 'bin']
 const WINDOWS_PATH_COMMAND_TIMEOUT_MS = 5_000
 
 type CliInstallerOptions = {
+  distribution?: 'orca' | 'neurorca'
   platform?: NodeJS.Platform
   isPackaged?: boolean
   userDataPath?: string
@@ -53,6 +56,7 @@ type InstallSpec = {
 }
 
 export class CliInstaller {
+  private readonly distribution: 'orca' | 'neurorca'
   private readonly platform: NodeJS.Platform
   private readonly isPackaged: boolean
   private readonly userDataPath: string
@@ -74,11 +78,16 @@ export class CliInstaller {
       // Why: development builds must not claim the production shell command.
       return DEV_COMMAND_NAME
     }
+    if (this.distribution === 'neurorca') {
+      return NEURORCA_COMMAND_NAME
+    }
     // Why: packaged Linux uses `orca-ide` to avoid shadowing GNOME Orca's /usr/bin/orca.
     return this.platform === 'linux' ? LINUX_COMMAND_NAME : 'orca'
   }
 
   constructor(options: CliInstallerOptions = {}) {
+    this.distribution =
+      options.distribution ?? (NEURORCA_BUILD ? ('neurorca' as const) : ('orca' as const))
     this.platform = options.platform ?? process.platform
     this.isPackaged = options.isPackaged ?? app.isPackaged
     this.userDataPath = options.userDataPath ?? app.getPath('userData')
@@ -100,10 +109,14 @@ export class CliInstaller {
     // XDG-standard user bin dir already on PATH via shell init on arm64.
     // defaultMacCommandPath is a test seam: it feeds into the existence check
     // so tests can simulate arm64 without relying on the real /usr/local/bin.
-    const candidateMacPath = options.defaultMacCommandPath ?? DEFAULT_MAC_COMMAND_PATH
+    const candidateMacPath =
+      options.defaultMacCommandPath ??
+      (this.distribution === 'neurorca'
+        ? DEFAULT_NEURORCA_MAC_COMMAND_PATH
+        : DEFAULT_MAC_COMMAND_PATH)
     this.macCommandPath = existsSync(dirname(candidateMacPath))
       ? candidateMacPath
-      : join(this.homePath, '.local', 'bin', 'orca')
+      : join(this.homePath, '.local', 'bin', this.commandName)
     this.privilegedRunner = options.privilegedRunner ?? runMacPrivilegedCommand
     this.userPathReader = options.userPathReader ?? (() => readWindowsUserPath())
     this.userPathWriter = options.userPathWriter ?? ((value) => writeWindowsUserPath(value))
@@ -349,16 +362,15 @@ export class CliInstaller {
       // Why: Linux does not have a single privileged global shell-command flow
       // equivalent to macOS's /usr/local/bin integration. ~/.local/bin is the
       // least surprising user-scoped location that many distros already expose.
-      // Why `orca-ide`: GNOME Orca (the screen reader) ships /usr/bin/orca on
-      // most Linux distros. Using `orca-ide` avoids shadowing that system
-      // command, matching the executableName already used for the Electron binary.
-      return join(this.homePath, '.local', 'bin', LINUX_COMMAND_NAME)
+      // Official Orca uses `orca-ide` to avoid shadowing GNOME Orca. Neurorca
+      // has its own collision-free command name.
+      return join(this.homePath, '.local', 'bin', this.commandName)
     }
 
     if (this.platform === 'win32') {
       // Why: NSIS /D installs can live outside LOCALAPPDATA. The packaged
       // resources directory is the authoritative native launcher location.
-      return getBundledLauncherPath(this.platform, this.resourcesPath)
+      return getBundledLauncherPath(this.platform, this.resourcesPath, this.distribution)
     }
 
     return null
@@ -374,7 +386,11 @@ export class CliInstaller {
     }
 
     if (this.isPackaged) {
-      const bundledPath = getBundledLauncherPath(this.platform, this.resourcesPath)
+      const bundledPath = getBundledLauncherPath(
+        this.platform,
+        this.resourcesPath,
+        this.distribution
+      )
       return bundledPath && existsSync(bundledPath) ? bundledPath : null
     }
 
@@ -431,7 +447,12 @@ export class CliInstaller {
   }
 
   private async removeLegacyLinuxCommandIfManaged(launcherPath: string | null): Promise<void> {
-    if (this.platform !== 'linux' || this.commandPathOverride || !launcherPath) {
+    if (
+      this.distribution !== 'orca' ||
+      this.platform !== 'linux' ||
+      this.commandPathOverride ||
+      !launcherPath
+    ) {
       return
     }
 
@@ -488,7 +509,7 @@ export class CliInstaller {
     // Why: unlike macOS symlink install, AppImage uses the user-writable Linux
     // command dir and must create it before writing the wrapper file.
     await mkdir(dirname(commandPath), { recursive: true })
-    await writeFile(commandPath, buildAppImageCliWrapper(appImagePath), {
+    await writeFile(commandPath, this.buildAppImageCliWrapper(appImagePath), {
       encoding: 'utf8',
       mode: 0o755
     })
@@ -513,7 +534,7 @@ export class CliInstaller {
       }
 
       const currentContent = await readFile(commandPath, 'utf8')
-      const expectedContent = buildAppImageCliWrapper(appImagePath)
+      const expectedContent = this.buildAppImageCliWrapper(appImagePath)
       return this.buildStatus({
         commandPath,
         launcherPath: appImagePath,
@@ -540,6 +561,13 @@ export class CliInstaller {
       }
       throw error
     }
+  }
+
+  private buildAppImageCliWrapper(appImagePath: string): string {
+    return buildAppImageCliWrapper(
+      appImagePath,
+      this.distribution === 'neurorca' ? 'Neurorca' : 'Orca'
+    )
   }
 
   private async inspectSymlink(
@@ -1176,16 +1204,18 @@ function quotePowerShell(value: string): string {
 
 export function getBundledLauncherPath(
   platform: NodeJS.Platform,
-  resourcesPath: string
+  resourcesPath: string,
+  distribution: 'orca' | 'neurorca' = 'orca'
 ): string | null {
+  const commandName = distribution === 'neurorca' ? NEURORCA_COMMAND_NAME : null
   if (platform === 'darwin') {
-    return join(resourcesPath, 'bin', 'orca')
+    return join(resourcesPath, 'bin', commandName ?? 'orca')
   }
   if (platform === 'linux') {
-    return join(resourcesPath, 'bin', LINUX_COMMAND_NAME)
+    return join(resourcesPath, 'bin', commandName ?? LINUX_COMMAND_NAME)
   }
   if (platform === 'win32') {
-    return join(resourcesPath, 'bin', 'orca.exe')
+    return join(resourcesPath, 'bin', `${commandName ?? 'orca'}.exe`)
   }
   return null
 }

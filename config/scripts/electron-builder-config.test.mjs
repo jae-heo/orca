@@ -141,6 +141,49 @@ describe('electron-builder config', () => {
     }
   })
 
+  it('isolates Neurorca packaging from official Orca', () => {
+    const configPath = require.resolve('../electron-builder.config.cjs')
+    const original = process.env.NEURORCA_BUILD
+    try {
+      delete require.cache[configPath]
+      process.env.NEURORCA_BUILD = '1'
+      const neurorcaConfig = require('../electron-builder.config.cjs')
+
+      expect(neurorcaConfig).toMatchObject({
+        appId: 'com.neurocore.neurorca',
+        productName: 'Neurorca',
+        extraMetadata: {
+          name: 'neurorca',
+          productName: 'Neurorca',
+          neurorcaBuild: true
+        },
+        dmg: { artifactName: 'neurorca-macos-${arch}.${ext}' },
+        appImage: { artifactName: 'neurorca-linux-${arch}.${ext}' },
+        deb: {
+          packageName: 'neurorca',
+          artifactName: 'neurorca_${version}_${arch}.${ext}'
+        }
+      })
+      expect(neurorcaConfig.publish).toBeUndefined()
+      expect(neurorcaConfig.mac.extraResources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            from: 'resources/darwin/bin/neurorca',
+            to: 'bin/neurorca'
+          })
+        ])
+      )
+    } finally {
+      if (original === undefined) {
+        delete process.env.NEURORCA_BUILD
+      } else {
+        process.env.NEURORCA_BUILD = original
+      }
+      delete require.cache[configPath]
+      require('../electron-builder.config.cjs')
+    }
+  })
+
   it('uses Orca native rebuild hook instead of electron-builder default rebuild', () => {
     expect(electronBuilderConfig.beforeBuild).toBe(electronBuilderNativeRebuild)
     expect(electronBuilderConfig.npmRebuild).toBe(true)

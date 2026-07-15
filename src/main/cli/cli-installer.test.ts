@@ -99,6 +99,36 @@ describe('CliInstaller', () => {
     }
   )
 
+  it.skipIf(process.platform === 'win32')(
+    'uses an independent Neurorca command and bundled launcher',
+    async () => {
+      const fixture = await makeFixture()
+      const resourcesPath = join(fixture.root, 'resources')
+      const homePath = join(fixture.root, 'home')
+      const missingDefaultPath = join(fixture.root, 'missing', 'bin', 'neurorca')
+      await mkdir(join(resourcesPath, 'bin'), { recursive: true })
+      await writeFile(join(resourcesPath, 'bin', 'neurorca'), '#!/bin/sh\n', { mode: 0o755 })
+
+      const installer = new CliInstaller({
+        distribution: 'neurorca',
+        platform: 'darwin',
+        isPackaged: true,
+        resourcesPath,
+        userDataPath: fixture.userDataPath,
+        execPath: '/Applications/Neurorca.app/Contents/MacOS/Neurorca',
+        appPath: fixture.appPath,
+        homePath,
+        defaultMacCommandPath: missingDefaultPath,
+        processPathEnv: join(homePath, '.local', 'bin')
+      })
+
+      const status = await installer.getStatus()
+      expect(status.commandName).toBe('neurorca')
+      expect(status.commandPath).toBe(join(homePath, '.local', 'bin', 'neurorca'))
+      expect(status.launcherPath).toBe(join(resourcesPath, 'bin', 'neurorca'))
+    }
+  )
+
   // Why: this test creates Unix symlinks and shell scripts that only apply on Linux.
   it.skipIf(process.platform === 'win32')(
     'creates a linux symlink under the requested path and warns when PATH is missing',

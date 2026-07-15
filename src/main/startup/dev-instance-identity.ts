@@ -4,6 +4,8 @@ import type { AppIdentity } from '../../shared/app-identity'
 
 const BASE_APP_NAME = 'Orca'
 const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca'
+const NEURORCA_APP_NAME = 'Neurorca'
+const NEURORCA_APP_USER_MODEL_ID = 'com.neurocore.neurorca'
 const MAX_LABEL_LENGTH = 80
 
 export type DevInstanceIdentity = AppIdentity & {
@@ -45,18 +47,20 @@ function createDevAppUserModelId(identityKey: string | null): string {
 
 export function getDevInstanceIdentity(
   isDev: boolean,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  distribution: 'orca' | 'neurorca' = 'orca'
 ): DevInstanceIdentity {
   if (!isDev) {
     return {
-      name: BASE_APP_NAME,
+      name: distribution === 'neurorca' ? NEURORCA_APP_NAME : BASE_APP_NAME,
       isDev: false,
       devLabel: null,
       devBranch: null,
       devWorktreeName: null,
       devRepoRoot: null,
       dockBadgeLabel: null,
-      appUserModelId: BASE_APP_USER_MODEL_ID
+      appUserModelId:
+        distribution === 'neurorca' ? NEURORCA_APP_USER_MODEL_ID : BASE_APP_USER_MODEL_ID
     }
   }
 

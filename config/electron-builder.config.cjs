@@ -14,6 +14,11 @@ const {
 
 const isMacRelease = process.env.ORCA_MAC_RELEASE === '1'
 const isLinuxArm64Release = process.env.ORCA_LINUX_ARM64_RELEASE === '1'
+const isNeurorcaBuild = process.env.NEURORCA_BUILD === '1'
+const productName = isNeurorcaBuild ? 'Neurorca' : 'Orca'
+const appId = isNeurorcaBuild ? 'com.neurocore.neurorca' : 'com.stablyai.orca'
+const unixCliName = isNeurorcaBuild ? 'neurorca' : 'orca'
+const linuxExecutableName = isNeurorcaBuild ? 'neurorca' : 'orca-ide'
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -47,8 +52,17 @@ const winSpeechNativeResource = {
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  appId: 'com.stablyai.orca',
-  productName: 'Orca',
+  appId,
+  productName,
+  ...(isNeurorcaBuild
+    ? {
+        extraMetadata: {
+          name: 'neurorca',
+          productName: 'Neurorca',
+          neurorcaBuild: true
+        }
+      }
+    : {}),
   directories: {
     buildResources: 'resources/build'
   },
@@ -175,7 +189,7 @@ module.exports = {
     }
   },
   win: {
-    executableName: 'Orca',
+    executableName: productName,
     // Why: Windows installers are signed after electron-builder packaging by
     // SignPath, so the packager cannot infer the updater publisherName.
     signtoolOptions: {
@@ -185,12 +199,12 @@ module.exports = {
       ...commonExtraResources,
       winSpeechNativeResource,
       {
-        from: 'resources/win32/bin/orca.cmd',
-        to: 'bin/orca.cmd'
+        from: isNeurorcaBuild ? 'resources/win32/bin/neurorca.cmd' : 'resources/win32/bin/orca.cmd',
+        to: `bin/${unixCliName}.cmd`
       },
       {
         from: 'native/windows-cli-launcher/.build/orca.exe',
-        to: 'bin/orca.exe'
+        to: `bin/${unixCliName}.exe`
       },
       {
         from: 'node_modules/agent-browser/bin/agent-browser-win32-x64.exe',
@@ -204,7 +218,7 @@ module.exports = {
     ]
   },
   nsis: {
-    artifactName: 'orca-windows-setup.${ext}',
+    artifactName: isNeurorcaBuild ? 'neurorca-windows-setup.${ext}' : 'orca-windows-setup.${ext}',
     shortcutName: '${productName}',
     uninstallDisplayName: '${productName}',
     createDesktopShortcut: 'always',
@@ -248,8 +262,8 @@ module.exports = {
       ...commonExtraResources,
       macSpeechNativeResource,
       {
-        from: 'resources/darwin/bin/orca',
-        to: 'bin/orca'
+        from: `resources/darwin/bin/${unixCliName}`,
+        to: `bin/${unixCliName}`
       },
       {
         from: 'node_modules/agent-browser/bin/agent-browser-darwin-${arch}',
@@ -291,12 +305,12 @@ module.exports = {
   // silently downgrading to ad-hoc artifacts that look shippable in CI logs.
   forceCodeSigning: isMacRelease,
   dmg: {
-    artifactName: 'orca-macos-${arch}.${ext}'
+    artifactName: isNeurorcaBuild ? 'neurorca-macos-${arch}.${ext}' : 'orca-macos-${arch}.${ext}'
   },
   linux: {
     // Why: Ubuntu desktop ships GNOME Orca as the `orca` package and /usr/bin/orca.
     // The Linux installer should not claim those system package/file names.
-    executableName: 'orca-ide',
+    executableName: linuxExecutableName,
     // Why: the icns source lets electron-builder emit standard hicolor PNG
     // sizes; a single 1024px PNG is ignored by some Linux docks/launchers.
     icon: 'resources/build/icon.icns',
@@ -304,15 +318,15 @@ module.exports = {
       entry: {
         // Why: Electron reports WM_CLASS=orca for the visible Linux window;
         // GNOME docks need an exact match to group it with orca-ide.desktop.
-        StartupWMClass: 'orca'
+        StartupWMClass: isNeurorcaBuild ? 'neurorca' : 'orca'
       }
     },
     extraResources: [
       ...commonExtraResources,
       linuxSpeechNativeResource,
       {
-        from: 'resources/linux/bin/orca-ide',
-        to: 'bin/orca-ide'
+        from: `resources/linux/bin/${linuxExecutableName}`,
+        to: `bin/${linuxExecutableName}`
       },
       {
         from: 'node_modules/agent-browser/bin/agent-browser-linux-${arch}',
@@ -329,11 +343,17 @@ module.exports = {
     category: 'Utility'
   },
   appImage: {
-    artifactName: isLinuxArm64Release ? 'orca-linux-arm64.${ext}' : 'orca-linux.${ext}'
+    artifactName: isNeurorcaBuild
+      ? 'neurorca-linux-${arch}.${ext}'
+      : isLinuxArm64Release
+        ? 'orca-linux-arm64.${ext}'
+        : 'orca-linux.${ext}'
   },
   deb: {
-    packageName: 'orca-ide',
-    artifactName: 'orca-ide_${version}_${arch}.${ext}',
+    packageName: isNeurorcaBuild ? 'neurorca' : 'orca-ide',
+    artifactName: isNeurorcaBuild
+      ? 'neurorca_${version}_${arch}.${ext}'
+      : 'orca-ide_${version}_${arch}.${ext}',
     // Why: xvfb lets the bundled `orca serve` CLI run browser panes on a headless
     // Linux host — Chromium needs a display server even for offscreen rendering,
     // and serve starts Xvfb itself when present (see ensure-virtual-display.ts).
@@ -350,12 +370,18 @@ module.exports = {
     // works on a headless host. The in-app CLI registration (CliInstaller) is
     // GUI-triggered and can never run on a server, so without this the CLI is
     // unreachable from the shell on exactly the hosts that need it.
-    afterInstall: 'resources/linux/packaging/after-install.sh',
-    afterRemove: 'resources/linux/packaging/after-remove.sh'
+    afterInstall: isNeurorcaBuild
+      ? 'resources/linux/packaging/after-install-neurorca.sh'
+      : 'resources/linux/packaging/after-install.sh',
+    afterRemove: isNeurorcaBuild
+      ? 'resources/linux/packaging/after-remove-neurorca.sh'
+      : 'resources/linux/packaging/after-remove.sh'
   },
   rpm: {
-    packageName: 'orca-ide',
-    artifactName: 'orca-ide-${version}.${arch}.${ext}',
+    packageName: isNeurorcaBuild ? 'neurorca' : 'orca-ide',
+    artifactName: isNeurorcaBuild
+      ? 'neurorca-${version}.${arch}.${ext}'
+      : 'orca-ide-${version}.${arch}.${ext}',
     // Why: see deb depends. RPM distros ship Xvfb as xorg-x11-server-Xvfb (there
     // is no `xvfb` package), so the name differs from the deb here.
     depends: [
@@ -367,8 +393,12 @@ module.exports = {
       'xorg-x11-server-Xvfb'
     ],
     // Why: same headless CLI-on-PATH registration as deb; rpm runs these via fpm.
-    afterInstall: 'resources/linux/packaging/after-install.sh',
-    afterRemove: 'resources/linux/packaging/after-remove.sh'
+    afterInstall: isNeurorcaBuild
+      ? 'resources/linux/packaging/after-install-neurorca.sh'
+      : 'resources/linux/packaging/after-install.sh',
+    afterRemove: isNeurorcaBuild
+      ? 'resources/linux/packaging/after-remove-neurorca.sh'
+      : 'resources/linux/packaging/after-remove.sh'
   },
   beforeBuild: electronBuilderNativeRebuild,
   // Why: must be true so that electron-builder rebuilds native modules
@@ -378,19 +408,23 @@ module.exports = {
   // on Intel Macs. The beforeBuild hook performs Orca's targeted rebuild and
   // returns false so electron-builder does not rebuild optional cpu-features.
   npmRebuild: true,
-  publish: {
-    provider: 'github',
-    owner: 'stablyai',
-    repo: 'orca',
-    releaseType: 'release'
-  }
+  ...(isNeurorcaBuild
+    ? {}
+    : {
+        publish: {
+          provider: 'github',
+          owner: 'stablyai',
+          repo: 'orca',
+          releaseType: 'release'
+        }
+      })
 }
 
 function chmodUnixCliLaunchers(resourcesDir, electronPlatformName) {
   if (electronPlatformName === 'win32') {
     return
   }
-  for (const launcherName of ['orca', 'orca-ide']) {
+  for (const launcherName of ['orca', 'orca-ide', 'neurorca']) {
     const launcherPath = join(resourcesDir, 'bin', launcherName)
     if (!existsSync(launcherPath)) {
       continue
