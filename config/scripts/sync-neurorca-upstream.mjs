@@ -1,10 +1,12 @@
 import { spawnSync } from 'node:child_process'
+import { loadNeurorcaOperationsConfig } from './neurorca-operations-config.mjs'
 
-const REQUIRED_BRANCH = 'local/neurorca'
-const FEATURE_REFS = [
-  ['origin/fix/headless-serve-ssh-handlers', 'fix/headless-serve-ssh-handlers'],
-  ['origin/feat/database-query-tabs', 'feat/database-query-tabs']
-]
+const operationsConfig = loadNeurorcaOperationsConfig()
+const REQUIRED_BRANCH = operationsConfig.requiredBranch
+const FEATURE_REFS = operationsConfig.featureRefs.map((remoteRef) => [
+  remoteRef,
+  remoteRef.replace(/^origin\//, '')
+])
 
 function git(args, options = {}) {
   const result = spawnSync('git', args, {

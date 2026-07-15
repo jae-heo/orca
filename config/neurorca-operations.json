@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "requiredBranch": "local/neurorca",
+  "featureRefs": ["origin/fix/headless-serve-ssh-handlers", "origin/feat/database-query-tabs"],
+  "macos": {
+    "bundleId": "com.neurocore.neurorca",
+    "obsoleteBundleIds": ["com.stablyai.orca"],
+    "canonicalAppPath": "/Applications/Neurorca.app",
+    "userDataPath": "~/Library/Application Support/Neurorca",
+    "cliPath": "~/.local/bin/neurorca",
+    "buildApps": {
+      "arm64": "dist/mac-arm64/Neurorca.app",
+      "x64": "dist/mac/Neurorca.app"
+    }
+  },
+  "linux": {
+    "defaultHost": "linux-jae",
+    "serviceName": "neurorca-server.service",
+    "serviceUser": "jae",
+    "sourceDir": "/home/jae/neurorca-src",
+    "buildAppImage": "/home/jae/neurorca-src/dist/neurorca-linux-x86_64.AppImage",
+    "installedAppImage": "/usr/local/libexec/neurorca-server.AppImage",
+    "cliPath": "/home/jae/.local/bin/neurorca",
+    "userDataPath": "/home/jae/.config/Neurorca",
+    "port": 6768,
+    "pairingAddress": "100.110.163.64"
+  }
+}

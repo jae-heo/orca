@@ -34,6 +34,26 @@ Orca targets macOS, Linux, and Windows. Keep all platform-dependent behavior beh
 
 All changes must consider the SSH use case. Don't assume local-only execution.
 
+## Neurorca Integration Operations
+
+Before changing, building, installing, updating, or diagnosing the Neurorca
+integration distribution, read
+[`docs/reference/neurorca-operations.md`](./docs/reference/neurorca-operations.md)
+and run `pnpm neurorca:doctor`. Treat
+[`config/neurorca-operations.json`](./config/neurorca-operations.json) as the
+machine-readable source of installation paths and host defaults.
+
+Never identify a detached Neurorca terminal daemon as stale from its executable
+path alone. It can intentionally outlive the app bundle that launched it. Never
+signal daemon or PTY process groups, delete daemon sockets, restart the Linux
+service, or replace an active AppImage while `neurorca terminal list --json`
+reports live terminals. Use the checked-in Neurorca install/deploy commands;
+they enforce readiness, duplicate cleanup, live-session gates, and rollback.
+
+Do not delete or reset Neurorca user data, database credentials, SSH material,
+or unrelated dirty worktree changes. Pairing URLs and device tokens are secrets
+and must not be written to docs, commits, issues, or logs included in reports.
+
 ## Git Binary Compatibility
 
 Orca runs the user's Git binary on native, WSL, and SSH hosts, which may all have different versions. Treat Git 2.25 as the core-workflow baseline and follow [`docs/reference/git-compatibility.md`](./docs/reference/git-compatibility.md).

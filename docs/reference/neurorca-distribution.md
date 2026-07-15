@@ -4,6 +4,11 @@ Neurorca is Neurocore's integration build of Orca. It follows upstream Orca
 while carrying the headless runtime SSH/project-management and database-tab
 changes before those changes are available in an official release.
 
+For installation paths, the Mac → Linux → SSH-host topology, live-session
+safety rules, verification, deployment, and rollback, follow
+[`neurorca-operations.md`](./neurorca-operations.md). Those operational rules
+are part of the distribution contract, not optional local notes.
+
 ## Identity boundary
 
 Build with `NEURORCA_BUILD=1` (normally through the package scripts below).
@@ -52,6 +57,25 @@ On the target Linux architecture:
 pnpm install --frozen-lockfile
 pnpm build:neurorca:linux
 ```
+
+For the configured headless build host, use the reproducible remote build
+command after committing and pushing a clean `local/neurorca` branch:
+
+```bash
+pnpm neurorca:build:linux:remote
+```
+
+Install the Mac build and activate the Linux build only through the guarded
+commands:
+
+```bash
+pnpm neurorca:install:mac
+pnpm neurorca:deploy:linux
+```
+
+The Linux deploy command refuses to restart while any live terminal exists.
+Close those terminals and rerun it; do not bypass the guard merely to make an
+update finish sooner.
 
 The macOS build is locally signed/ad-hoc unless Apple release credentials are
 provided. A future automatic Neurorca binary-update feed must publish signed
