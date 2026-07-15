@@ -40,6 +40,12 @@ pnpm install --frozen-lockfile
 pnpm build:neurorca:mac
 ```
 
+The Neurorca wrapper uses the normal Orca macOS build. If clang, make, and the
+macOS SDK are installed but `node-gyp` cannot see the Command Line Tools version
+because its package receipt is missing, it supplies a temporary version shim
+for that build and removes it afterward. Missing compiler or SDK binaries still
+fail with repair guidance instead of being bypassed.
+
 On the target Linux architecture:
 
 ```bash
