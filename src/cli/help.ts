@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- Why: root and generated command help text live together so CLI discovery stays greppable. */
+import { basename } from 'node:path'
 import type { CommandSpec } from './args'
 import { findCommandSpec, isCommandGroup, supportsBrowserPageFlag } from './args'
 import { unknownCommandData } from './command-suggestion'
@@ -335,6 +336,24 @@ Examples:
   $ orca eval --expression "document.title"
   $ orca tab list --json`
 
+function getCliCommandName(): 'orca' | 'neurorca' {
+  const configured = process.env.ORCA_CLI_COMMAND
+  if (configured === 'neurorca') {
+    return configured
+  }
+  return basename(process.execPath).toLowerCase().startsWith('neurorca') ? 'neurorca' : 'orca'
+}
+
+function formatCliInvocationNames(text: string): string {
+  const commandName = getCliCommandName()
+  if (commandName === 'orca') {
+    return text
+  }
+  // Why: only rewrite command tokens. Product prose ("Orca"), paths such as
+  // /tmp/orca, and the orca:// pairing protocol retain their upstream names.
+  return text.replace(/(^|[\s`$])orca(?=\s|$)/gm, `$1${commandName}`)
+}
+
 export function printHelp(specs: CommandSpec[], commandPath: string[] = []): void {
   const exactSpec = findCommandSpec(specs, commandPath)
   if (exactSpec) {
@@ -349,11 +368,13 @@ export function printHelp(specs: CommandSpec[], commandPath: string[] = []): voi
 
   if (commandPath.length > 0) {
     const { nextSteps } = unknownCommandData(specs, commandPath)
-    const recovery = nextSteps.map((step) => `Next step: ${step}`).join('\n')
+    const recovery = formatCliInvocationNames(
+      nextSteps.map((step) => `Next step: ${step}`).join('\n')
+    )
     console.log(`Unknown command: ${commandPath.join(' ')}${recovery ? `\n${recovery}` : ''}\n`)
   }
 
-  console.log(ROOT_HELP_TEXT)
+  console.log(formatCliInvocationNames(ROOT_HELP_TEXT))
 }
 
 export function formatCommandHelp(spec: CommandSpec): string {
@@ -386,16 +407,23 @@ export function formatCommandHelp(spec: CommandSpec): string {
     }
   }
 
-  return lines.join('\n')
+  return formatCliInvocationNames(lines.join('\n'))
 }
 
 export function formatGroupHelp(specs: CommandSpec[], group: string): string {
+  const commandName = getCliCommandName()
   const groupSpecs = specs.filter((spec) => spec.path[0] === group)
-  const lines = [`orca ${group}`, '', `Usage: orca ${group} <command> [options]`, '', 'Commands:']
+  const lines = [
+    `${commandName} ${group}`,
+    '',
+    `Usage: ${commandName} ${group} <command> [options]`,
+    '',
+    'Commands:'
+  ]
   for (const spec of groupSpecs) {
     lines.push(`  ${spec.path.slice(1).join(' ').padEnd(18)} ${spec.summary}`)
   }
-  lines.push('', `Run \`orca ${group} <command> --help\` for command-specific usage.`)
+  lines.push('', `Run \`${commandName} ${group} <command> --help\` for command-specific usage.`)
   return lines.join('\n')
 }
 

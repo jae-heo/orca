@@ -308,6 +308,24 @@ describe('unknown help command surfaces a suggestion', () => {
 })
 
 describe('orca root help', () => {
+  it('uses the Neurorca command name without rewriting product names or pairing URLs', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    process.env.ORCA_CLI_COMMAND = 'neurorca'
+
+    try {
+      await main(['--help'], '/tmp/repo')
+
+      const help = String(logSpy.mock.calls[0][0])
+      expect(help).toContain('Usage: neurorca <command> [options]')
+      expect(help).toContain('$ neurorca status --json')
+      expect(help).toContain('Launch Orca and wait for the runtime')
+      expect(help).toContain('orca://pair?')
+    } finally {
+      delete process.env.ORCA_CLI_COMMAND
+      logSpy.mockRestore()
+    }
+  })
+
   it('advertises machine-readable agent discovery', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 

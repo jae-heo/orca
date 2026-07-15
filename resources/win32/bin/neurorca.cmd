@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set "ORCA_CLI_COMMAND=neurorca"
 set "SCRIPT_DIR=%~dp0"
 set "LAUNCHER=%SCRIPT_DIR%neurorca.exe"
 
