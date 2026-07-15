@@ -9,6 +9,7 @@ import type { AddRepoDialogStep } from './add-repo-dialog-types'
 import { translate } from '@/i18n/i18n'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
 import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
+import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
 
 export function useAddRepoCloneFlow({
   step,
@@ -123,12 +124,25 @@ export function useAddRepoCloneFlow({
             ...useAppStore.getState().settings,
             activeRuntimeEnvironmentId: null
           })
-      const repo = sshTargetId?.trim()
-        ? await window.api.repos.cloneRemote({
-            connectionId: sshTargetId.trim(),
-            url: trimmedUrl,
-            destination: cloneDestination.trim()
-          })
+      const addedRepo = sshTargetId?.trim()
+        ? activeRuntimeEnvironmentId?.trim()
+          ? (
+              await callRuntimeRpc<{ repo: Repo }>(
+                target,
+                'repo.cloneRemote',
+                {
+                  connectionId: sshTargetId.trim(),
+                  url: trimmedUrl,
+                  destination: cloneDestination.trim()
+                },
+                { timeoutMs: 10 * 60_000 }
+              )
+            ).repo
+          : await window.api.repos.cloneRemote({
+              connectionId: sshTargetId.trim(),
+              url: trimmedUrl,
+              destination: cloneDestination.trim()
+            })
         : target.kind === 'environment'
           ? (
               await callRuntimeRpc<{ repo: Repo }>(
@@ -145,6 +159,12 @@ export function useAddRepoCloneFlow({
               url: trimmedUrl,
               destination: cloneDestination.trim()
             })) as Repo)
+      const repo = activeRuntimeEnvironmentId?.trim()
+        ? {
+            ...addedRepo,
+            executionHostId: toRuntimeExecutionHostId(activeRuntimeEnvironmentId.trim())
+          }
+        : addedRepo
       if (gen !== cloneGenRef.current || requestHostToken !== hostTokenRef.current) {
         return
       }

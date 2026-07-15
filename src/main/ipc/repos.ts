@@ -350,14 +350,14 @@ function getRemoteRepoFolderName(remotePath: string): string {
   return trimmed.split(/[\\/]/).at(-1) || remotePath
 }
 
-async function cloneRemoteRepo(
+export async function cloneRemoteRepo(
   store: Store,
-  mainWindow: BrowserWindow,
   args: {
     connectionId: string
     url: string
     destination: string
-  }
+  },
+  onProgress?: (progress: { phase: string; percent: number }) => void
 ): Promise<Repo> {
   const gitProvider = getSshGitProvider(args.connectionId)
   if (!gitProvider) {
@@ -417,11 +417,7 @@ async function cloneRemoteRepo(
       {
         signal: controller.signal,
         timeoutMs: 10 * 60_000,
-        onProgress: (progress) => {
-          if (!mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('repos:clone-progress', progress)
-          }
-        }
+        onProgress
       }
     )
   } catch (err) {
@@ -465,7 +461,7 @@ async function cloneRemoteRepo(
   return result.repo
 }
 
-async function createRemoteRepo(
+export async function createRemoteRepo(
   store: Store,
   args: {
     connectionId: string
@@ -2419,7 +2415,11 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
       _event,
       args: { connectionId: string; url: string; destination: string }
     ): Promise<Repo> => {
-      const repo = await cloneRemoteRepo(store, mainWindow, args)
+      const repo = await cloneRemoteRepo(store, args, (progress) => {
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('repos:clone-progress', progress)
+        }
+      })
       notifyReposChanged(mainWindow)
       return repo
     }

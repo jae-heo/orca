@@ -681,7 +681,12 @@ import {
   WORKTREE_CREATE_MAX_SUFFIX_ATTEMPTS
 } from '../worktree-create-candidates'
 import { normalizeSparseDirectories } from '../ipc/sparse-checkout-directories'
-import { addRemoteRepoFromPath, scanNestedReposForIpc } from '../ipc/repos'
+import {
+  addRemoteRepoFromPath,
+  cloneRemoteRepo,
+  createRemoteRepo,
+  scanNestedReposForIpc
+} from '../ipc/repos'
 import type { Store } from '../persistence'
 import type { StatsCollector } from '../stats/collector'
 import { AgentDetector } from '../stats/agent-detector'
@@ -11713,8 +11718,17 @@ export class OrcaRuntimeService {
       // Why: hooks retain launch-time attribution across automatic workspace
       // renames; the tab's current mirrored owner is authoritative when present.
       const tabId = src.tabId ?? parsePaneKey(src.paneKey)?.tabId
-      const worktreeId =
-        (tabId ? mirroredWorktreeIdByTabId.get(tabId) : undefined) ?? src.worktreeId
+      const mirroredWorktreeId = tabId ? mirroredWorktreeIdByTabId.get(tabId) : undefined
+      // Why: completed hook snapshots outlive closed tabs for history. Do not
+      // resurrect them as current mobile agents once their owner is gone.
+      if (
+        tabId &&
+        !mirroredWorktreeId &&
+        !isFreshNonDoneAgentStatus({ state: src.state, updatedAt: src.updatedAt }, now)
+      ) {
+        continue
+      }
+      const worktreeId = mirroredWorktreeId ?? src.worktreeId
       if (!worktreeId) {
         continue
       }
@@ -12118,6 +12132,35 @@ export class OrcaRuntimeService {
     return { repo: result.repo }
   }
 
+  async createSshRepo(args: {
+    connectionId: string
+    parentPath: string
+    name: string
+    kind: 'git' | 'folder'
+  }): Promise<{ repo: Repo } | { error: string }> {
+    if (!this.store) {
+      throw new Error('runtime_unavailable')
+    }
+    const result = await createRemoteRepo(this.store as Store, args)
+    if (!('error' in result)) {
+      this.notifyReposChanged()
+    }
+    return result
+  }
+
+  async cloneSshRepo(args: {
+    connectionId: string
+    url: string
+    destination: string
+  }): Promise<{ repo: Repo }> {
+    if (!this.store) {
+      throw new Error('runtime_unavailable')
+    }
+    const repo = await cloneRemoteRepo(this.store as Store, args)
+    this.notifyReposChanged()
+    return { repo }
+  }
+
   async browseServerDir(pathValue: string): Promise<{ resolvedPath: string; entries: DirEntry[] }> {
     const dirPath = resolveServerBrowsePath(pathValue)
     const dirStat = await stat(dirPath)
@@ -12154,21 +12197,28 @@ export class OrcaRuntimeService {
     parentPath: string
     groupName: string
     projectPaths: string[]
+    connectionId?: string
     mode: ProjectGroupImportMode
   }): Promise<ProjectGroupImportResult> {
     if (!this.store?.createProjectGroup || !this.store?.moveProjectToGroup) {
       throw new Error('runtime_unavailable')
     }
-    if (!isAbsolute(args.parentPath)) {
+    if (!args.connectionId && !isAbsolute(args.parentPath)) {
       throw new Error('Project path must be an absolute path')
     }
-    const scan = await scanNestedRepos({ path: args.parentPath, options: { timeoutMs: 15_000 } })
+    const scan = args.connectionId
+      ? await scanNestedReposForIpc({
+          path: args.parentPath,
+          connectionId: args.connectionId,
+          options: { timeoutMs: 15_000 }
+        })
+      : await scanNestedRepos({ path: args.parentPath, options: { timeoutMs: 15_000 } })
     const selection = resolveNestedRepoSelection({ scan, projectPaths: args.projectPaths })
     const groupResolver = createNestedProjectGroupResolver({
-      parentPath: args.parentPath,
+      parentPath: scan.selectedPath,
       groupName: args.groupName,
       mode: args.mode,
-      connectionId: null,
+      connectionId: args.connectionId ?? null,
       repoPaths: selection.selectedPaths,
       createGroup: (input) => this.store!.createProjectGroup!(input)
     })
@@ -12183,11 +12233,21 @@ export class OrcaRuntimeService {
     const importTargetResolver = createNestedRepoImportTargetResolver()
     for (const [projectGroupOrder, repoPath] of selection.selectedPaths.entries()) {
       try {
-        if (!isGitRepo(repoPath)) {
+        let importRepoPath = repoPath
+        if (args.connectionId) {
+          const gitProvider = getSshGitProvider(args.connectionId)
+          const check = gitProvider ? await gitProvider.isGitRepoAsync(repoPath) : null
+          if (!gitProvider || !check?.isRepo) {
+            results.push({ path: repoPath, status: 'failed', error: 'Not a valid git repository' })
+            continue
+          }
+          importRepoPath = await importTargetResolver.resolveSsh(repoPath, gitProvider)
+        } else if (!isGitRepo(repoPath)) {
           results.push({ path: repoPath, status: 'failed', error: 'Not a valid git repository' })
           continue
+        } else {
+          importRepoPath = await importTargetResolver.resolveLocal(repoPath)
         }
-        const importRepoPath = await importTargetResolver.resolveLocal(repoPath)
         const normalizedImportRepoPath = normalizeRuntimePathForComparison(importRepoPath)
         const alreadyImportedProjectId = importedProjectIdsByRepoPath.get(normalizedImportRepoPath)
         if (alreadyImportedProjectId) {
@@ -12200,7 +12260,11 @@ export class OrcaRuntimeService {
         }
         const existing = this.store
           .getRepos()
-          .find((repo) => normalizeRuntimePathForComparison(repo.path) === normalizedImportRepoPath)
+          .find(
+            (repo) =>
+              (repo.connectionId ?? null) === (args.connectionId ?? null) &&
+              normalizeRuntimePathForComparison(repo.path) === normalizedImportRepoPath
+          )
         const group = groupResolver.getGroupForRepo(repoPath)
         if (existing) {
           if (group) {
@@ -12210,15 +12274,25 @@ export class OrcaRuntimeService {
           results.push({ path: repoPath, projectId: existing.id, status: 'already-known' })
           continue
         }
+        const detected = args.connectionId
+          ? await detectRepoIconAndUpstream({
+              repoPath: importRepoPath,
+              kind: 'git',
+              connectionId: args.connectionId
+            })
+          : {}
         const repo: Repo = {
           id: randomUUID(),
           path: importRepoPath,
           displayName: getRepoName(importRepoPath),
           badgeColor: DEFAULT_REPO_BADGE_COLOR,
+          ...detected,
           addedAt: Date.now(),
           kind: 'git',
+          ...(args.connectionId ? { connectionId: args.connectionId } : {}),
           externalWorktreeVisibility: 'hide',
           externalWorktreeVisibilityLegacy: false,
+          projectHostSetupMethod: 'imported-existing-folder',
           ...(group
             ? {
                 projectGroupId: group.id,

@@ -9,6 +9,7 @@ import { translate } from '@/i18n/i18n'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
 import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
 
 // ── SSH host project hook ───────────────────────────────────────────
 
@@ -230,7 +231,12 @@ export function useRemoteRepo(
       if ('error' in result) {
         throw new Error(result.error)
       }
-      const repo = result.repo
+      const repo = runtimeEnvironmentId
+        ? {
+            ...result.repo,
+            executionHostId: toRuntimeExecutionHostId(runtimeEnvironmentId)
+          }
+        : result.repo
 
       const state = useAppStore.getState()
       const existingIdx = state.repos.findIndex((r) => r.id === repo.id)
@@ -262,7 +268,8 @@ export function useRemoteRepo(
         closeModal()
         useAppStore.getState().openModal('confirm-non-git-folder', {
           folderPath: trimmedRemotePath,
-          connectionId: selectedTargetId
+          connectionId: selectedTargetId,
+          ...(runtimeEnvironmentId ? { runtimeEnvironmentId } : {})
         })
         return
       }

@@ -115,6 +115,56 @@ describe('repo RPC methods', () => {
     })
   })
 
+  it('creates a repo through an SSH target owned by the runtime server', async () => {
+    const result = { repo: { id: 'repo-p8', path: '/srv/new-app', connectionId: 'ssh-p8' } }
+    const runtime = {
+      getRuntimeId: () => 'test-runtime',
+      createSshRepo: vi.fn().mockResolvedValue(result)
+    } as unknown as OrcaRuntimeService
+    const dispatcher = new RpcDispatcher({ runtime, methods: REPO_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('repo.createRemote', {
+        connectionId: 'ssh-p8',
+        parentPath: '/srv',
+        name: 'new-app',
+        kind: 'git'
+      })
+    )
+
+    expect(runtime.createSshRepo).toHaveBeenCalledWith({
+      connectionId: 'ssh-p8',
+      parentPath: '/srv',
+      name: 'new-app',
+      kind: 'git'
+    })
+    expect(response).toMatchObject({ ok: true, result })
+  })
+
+  it('clones a repo through an SSH target owned by the runtime server', async () => {
+    const result = { repo: { id: 'repo-p8', path: '/srv/orca', connectionId: 'ssh-p8' } }
+    const runtime = {
+      getRuntimeId: () => 'test-runtime',
+      cloneSshRepo: vi.fn().mockResolvedValue(result)
+    } as unknown as OrcaRuntimeService
+    const dispatcher = new RpcDispatcher({ runtime, methods: REPO_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('repo.cloneRemote', {
+        connectionId: 'ssh-p8',
+        url: 'https://github.com/stablyai/orca.git',
+        destination: '/srv'
+      })
+    )
+
+    expect(runtime.cloneSshRepo).toHaveBeenCalledWith({
+      connectionId: 'ssh-p8',
+      url: 'https://github.com/stablyai/orca.git',
+      destination: '/srv'
+    })
+    expect(response).toMatchObject({ ok: true, result })
+  })
+
   it('reports runtime Git availability without exposing command details', async () => {
     const runtime = {
       getRuntimeId: () => 'test-runtime',
@@ -554,7 +604,7 @@ describe('repo RPC methods', () => {
     })
   })
 
-  it('allows grouped nested-repo imports with a blank group name', async () => {
+  it('routes grouped nested-repo imports through a runtime-owned SSH target', async () => {
     const runtime = {
       getRuntimeId: () => 'test-runtime',
       importNestedRepos: vi.fn().mockResolvedValue({
@@ -571,6 +621,7 @@ describe('repo RPC methods', () => {
         parentPath: '/srv/platform',
         groupName: '',
         projectPaths: ['/srv/platform/api'],
+        connectionId: 'ssh-p8',
         mode: 'group'
       })
     )
@@ -579,6 +630,7 @@ describe('repo RPC methods', () => {
       parentPath: '/srv/platform',
       groupName: '',
       projectPaths: ['/srv/platform/api'],
+      connectionId: 'ssh-p8',
       mode: 'group'
     })
     expect(response).toMatchObject({

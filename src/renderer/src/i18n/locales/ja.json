@@ -4542,7 +4542,9 @@
           "addRemoteHostTooltip": "ログインできるマシンには SSH を選択し、Orca サーバーにはリモート サーバーを選択します。",
           "addSshHostDetail": "SSH 経由で既存のマシンを使用します。",
           "addRemoteServerDetail": "別のコンピューターで実行されている Orca とペアリングします。",
-          "addRemoteHostDetail": "SSH ホストまたは Orca サーバー"
+          "addRemoteHostDetail": "SSH ホストまたは Orca サーバー",
+          "from": "接続元",
+          "addSshHostForSourceDetail": "選択した接続元サーバーに追加します。"
         },
         "sidebarHostOptions": {
           "3e102f111c": "All hosts",
@@ -4642,7 +4644,10 @@
           "3b7e4a1c96": "外部ワークツリーを非表示"
         },
         "useAddRepoHostSelection": {
-          "connectionFailed": "SSH 接続に失敗しました。"
+          "connectionFailed": "SSH 接続に失敗しました。",
+          "thisServer": "このサーバー",
+          "thisComputer": "このコンピューター",
+          "sshViaServer": "{{value0}} 経由の SSH"
         },
         "AddRemoteHostDialog": {
           "sshHostRequired": "ホストまたは SSH 構成エイリアスが必要です。",

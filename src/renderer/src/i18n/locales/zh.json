@@ -4542,7 +4542,9 @@
           "addRemoteHostTooltip": "可选择能通过 SSH 登录的机器，也可选择运行 Orca 的远程服务器。",
           "addSshHostDetail": "通过 SSH 使用现有机器。",
           "addRemoteServerDetail": "与另一台电脑上运行的 Orca 配对。",
-          "addRemoteHostDetail": "SSH 主机或 Orca 服务器"
+          "addRemoteHostDetail": "SSH 主机或 Orca 服务器",
+          "from": "来源",
+          "addSshHostForSourceDetail": "将其添加到所选来源服务器。"
         },
         "sidebarHostOptions": {
           "3e102f111c": "所有主机",
@@ -4642,7 +4644,10 @@
           "3b7e4a1c96": "隐藏外部工作树"
         },
         "useAddRepoHostSelection": {
-          "connectionFailed": "SSH 连接失败。"
+          "connectionFailed": "SSH 连接失败。",
+          "thisServer": "此服务器",
+          "thisComputer": "此电脑",
+          "sshViaServer": "通过 {{value0}} 进行 SSH"
         },
         "AddRemoteHostDialog": {
           "sshHostRequired": "必须填写主机或 SSH 配置别名。",

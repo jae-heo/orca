@@ -1,21 +1,25 @@
-import { useState } from 'react'
-import { Check, ChevronRight, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Command, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import type { SidebarHostOption } from './sidebar-host-options'
-import { getSidebarHostHealthLabel, shouldShowHostScopeControls } from './sidebar-host-options'
+import { getSidebarHostHealthLabel } from './sidebar-host-options'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import { describeRuntimeCompatBlock } from '../../../../shared/protocol-compat'
 import { translate } from '@/i18n/i18n'
 import { canConnectAddRepoHost, canSelectAddRepoHost } from './add-repo-host-availability'
 
 type AddRepoHostSelectorProps = {
+  sources: SidebarHostOption[]
+  selectedSourceId: ExecutionHostId
+  sourceOpen: boolean
+  onSourceOpenChange: (open: boolean) => void
+  onSelectSource: (sourceId: ExecutionHostId) => void
   hosts: SidebarHostOption[]
   selectedHostId: ExecutionHostId
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  hostOpen: boolean
+  onHostOpenChange: (open: boolean) => void
   onSelectHost: (hostId: ExecutionHostId) => void
   onConnectHost?: (hostId: ExecutionHostId) => void
   onAddSshHost?: () => void
@@ -29,154 +33,74 @@ function getHostStatusDetail(host: SidebarHostOption): string {
   return `${getSidebarHostHealthLabel(host.health)}${host.detail ? ` - ${host.detail}` : ''}`
 }
 
-export function AddRepoHostSelector({
-  hosts,
-  selectedHostId,
+type RoutePickerProps = {
+  label: string
+  options: SidebarHostOption[]
+  selectedId: ExecutionHostId
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSelect: (id: ExecutionHostId) => void
+  onConnect?: (id: ExecutionHostId) => void
+  addAction?: { label: string; detail: string; onSelect: () => void }
+}
+
+function AddRepoRoutePicker({
+  label,
+  options,
+  selectedId,
   open,
   onOpenChange,
-  onSelectHost,
-  onConnectHost,
-  onAddSshHost,
-  onAddRemoteServer
-}: AddRepoHostSelectorProps): React.JSX.Element | null {
-  const [addHostOpen, setAddHostOpen] = useState(false)
-  const showHostSetupActions = Boolean(onAddSshHost || onAddRemoteServer)
-  if (!shouldShowHostScopeControls(hosts) && !showHostSetupActions) {
+  onSelect,
+  onConnect,
+  addAction
+}: RoutePickerProps): React.JSX.Element | null {
+  const selected = options.find((option) => option.id === selectedId) ?? options[0]
+  if (!selected) {
     return null
   }
 
-  const selectedHost = hosts.find((host) => host.id === selectedHostId) ?? hosts[0]
-  if (!selectedHost) {
-    return null
-  }
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="font-medium text-muted-foreground">
-        {translate('auto.components.sidebar.AddRepoHostSelector.host', 'Host')}
-      </span>
+    <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 text-xs">
+      <span className="font-medium text-muted-foreground">{label}</span>
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             role="combobox"
+            aria-label={label}
             aria-expanded={open}
-            className="h-7 min-w-0 max-w-[18rem] gap-1.5 rounded-md border border-border bg-muted/30 px-2 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+            className="h-8 min-w-0 justify-between gap-2 bg-input px-2.5 text-xs font-medium"
           >
-            <span className="min-w-0 truncate">{selectedHost.label}</span>
-            {selectedHost.health !== 'local' ? (
-              <span
-                title={getHostStatusDetail(selectedHost)}
-                className="shrink-0 text-[11px] font-normal text-muted-foreground"
-              >
-                {getSidebarHostHealthLabel(selectedHost.health)}
-              </span>
-            ) : null}
+            <span className="min-w-0 flex-1 truncate text-left">{selected.label}</span>
+            <span className="shrink-0 text-[11px] font-normal text-muted-foreground">
+              {getSidebarHostHealthLabel(selected.health)}
+            </span>
             <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-[min(340px,calc(100vw-1rem))] min-w-[var(--radix-popover-trigger-width)] p-0"
+          className="w-[min(360px,calc(100vw-1rem))] min-w-[var(--radix-popover-trigger-width)] p-0"
         >
           <Command>
             <CommandList>
-              {showHostSetupActions ? (
-                <Popover open={addHostOpen} onOpenChange={setAddHostOpen}>
-                  <PopoverTrigger asChild>
-                    <CommandItem
-                      value="Add remote host SSH host Orca server"
-                      onSelect={() => setAddHostOpen(true)}
-                      className="items-start gap-2 px-3 py-2 text-xs text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
-                    >
-                      <Plus className="mt-0.5 size-3 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate font-medium">
-                            {translate(
-                              'auto.components.sidebar.AddRepoHostSelector.addRemoteHost',
-                              'Add remote host'
-                            )}
-                          </span>
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                          {translate(
-                            'auto.components.sidebar.AddRepoHostSelector.addRemoteHostDetail',
-                            'SSH host or Orca server'
-                          )}
-                        </span>
-                      </span>
-                      <ChevronRight className="mt-0.5 size-3.5 shrink-0" />
-                    </CommandItem>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" side="right" className="w-72 p-1" sideOffset={8}>
-                    {onAddSshHost ? (
-                      <button
-                        type="button"
-                        className="flex w-full flex-col rounded-sm px-2.5 py-2 text-left hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                        onClick={() => {
-                          setAddHostOpen(false)
-                          onOpenChange(false)
-                          onAddSshHost()
-                        }}
-                      >
-                        <span className="text-xs font-medium">
-                          {translate(
-                            'auto.components.sidebar.AddRepoHostSelector.addSshHost',
-                            'Add SSH host'
-                          )}
-                        </span>
-                        <span className="mt-0.5 text-[11px] text-muted-foreground">
-                          {translate(
-                            'auto.components.sidebar.AddRepoHostSelector.addSshHostDetail',
-                            'Use an existing machine over SSH.'
-                          )}
-                        </span>
-                      </button>
-                    ) : null}
-                    {onAddRemoteServer ? (
-                      <button
-                        type="button"
-                        className="flex w-full flex-col rounded-sm px-2.5 py-2 text-left hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                        onClick={() => {
-                          setAddHostOpen(false)
-                          onOpenChange(false)
-                          onAddRemoteServer()
-                        }}
-                      >
-                        <span className="text-xs font-medium">
-                          {translate(
-                            'auto.components.sidebar.AddRepoHostSelector.addRemoteServer',
-                            'Add remote server'
-                          )}
-                        </span>
-                        <span className="mt-0.5 text-[11px] text-muted-foreground">
-                          {translate(
-                            'auto.components.sidebar.AddRepoHostSelector.addRemoteServerDetail',
-                            'Pair with Orca running on another computer.'
-                          )}
-                        </span>
-                      </button>
-                    ) : null}
-                  </PopoverContent>
-                </Popover>
-              ) : null}
-              {hosts.map((host) => {
-                const selected = host.id === selectedHostId
-                const disabled = !canSelectAddRepoHost(host)
-                const canConnect = canConnectAddRepoHost(host)
-                const isConnecting = host.health === 'connecting'
+              {options.map((option) => {
+                const isSelected = option.id === selectedId
+                const disabled = !canSelectAddRepoHost(option)
+                const canConnect = canConnectAddRepoHost(option)
+                const isConnecting = option.health === 'connecting'
                 return (
                   <CommandItem
-                    key={host.id}
-                    value={`${host.label} ${host.detail}`}
+                    key={option.id}
+                    value={`${option.label} ${option.detail}`}
                     disabled={disabled && !canConnect}
                     aria-disabled={disabled}
                     onSelect={() => {
                       if (disabled) {
                         return
                       }
-                      onSelectHost(host.id)
+                      onSelect(option.id)
                       onOpenChange(false)
                     }}
                     className={cn(
@@ -187,15 +111,13 @@ export function AddRepoHostSelector({
                     <Check
                       className={cn(
                         'mt-0.5 size-3 text-muted-foreground',
-                        selected ? 'opacity-70' : 'opacity-0'
+                        isSelected ? 'opacity-70' : 'opacity-0'
                       )}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">{host.label}</span>
-                      </span>
+                      <span className="block truncate font-medium">{option.label}</span>
                       <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        <span className="min-w-0 flex-1 truncate">{getHostStatusDetail(host)}</span>
+                        {getHostStatusDetail(option)}
                       </span>
                     </span>
                     {canConnect ? (
@@ -208,7 +130,7 @@ export function AddRepoHostSelector({
                         onClick={(event) => {
                           event.preventDefault()
                           event.stopPropagation()
-                          onConnectHost?.(host.id)
+                          onConnect?.(option.id)
                         }}
                       >
                         {isConnecting ? <Loader2 className="size-3 animate-spin" /> : null}
@@ -226,10 +148,96 @@ export function AddRepoHostSelector({
                   </CommandItem>
                 )
               })}
+              {addAction ? (
+                <CommandItem
+                  value={`${addAction.label} ${addAction.detail}`}
+                  onSelect={() => {
+                    onOpenChange(false)
+                    addAction.onSelect()
+                  }}
+                  className="items-start gap-2 border-t border-border px-3 py-2 text-xs"
+                >
+                  <Plus className="mt-0.5 size-3 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{addAction.label}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                      {addAction.detail}
+                    </span>
+                  </span>
+                </CommandItem>
+              ) : null}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
+    </div>
+  )
+}
+
+export function AddRepoHostSelector({
+  sources,
+  selectedSourceId,
+  sourceOpen,
+  onSourceOpenChange,
+  onSelectSource,
+  hosts,
+  selectedHostId,
+  hostOpen,
+  onHostOpenChange,
+  onSelectHost,
+  onConnectHost,
+  onAddSshHost,
+  onAddRemoteServer
+}: AddRepoHostSelectorProps): React.JSX.Element {
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-muted/25 p-2.5">
+      <AddRepoRoutePicker
+        label={translate('auto.components.sidebar.AddRepoHostSelector.from', 'From')}
+        options={sources}
+        selectedId={selectedSourceId}
+        open={sourceOpen}
+        onOpenChange={onSourceOpenChange}
+        onSelect={onSelectSource}
+        addAction={
+          onAddRemoteServer
+            ? {
+                label: translate(
+                  'auto.components.sidebar.AddRepoHostSelector.addRemoteServer',
+                  'Add remote server'
+                ),
+                detail: translate(
+                  'auto.components.sidebar.AddRepoHostSelector.addRemoteServerDetail',
+                  'Pair with Orca running on another computer.'
+                ),
+                onSelect: onAddRemoteServer
+              }
+            : undefined
+        }
+      />
+      <AddRepoRoutePicker
+        label={translate('auto.components.sidebar.AddRepoHostSelector.host', 'Host')}
+        options={hosts}
+        selectedId={selectedHostId}
+        open={hostOpen}
+        onOpenChange={onHostOpenChange}
+        onSelect={onSelectHost}
+        onConnect={onConnectHost}
+        addAction={
+          onAddSshHost
+            ? {
+                label: translate(
+                  'auto.components.sidebar.AddRepoHostSelector.addSshHost',
+                  'Add SSH host'
+                ),
+                detail: translate(
+                  'auto.components.sidebar.AddRepoHostSelector.addSshHostForSourceDetail',
+                  'Add it to the selected source server.'
+                ),
+                onSelect: onAddSshHost
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }

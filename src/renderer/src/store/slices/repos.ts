@@ -2010,7 +2010,8 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
                 parentPath: args.parentPath,
                 groupName: args.groupName,
                 projectPaths: args.projectPaths,
-                scanId: args.scanId,
+                ...(args.connectionId ? { connectionId: args.connectionId } : {}),
+                ...(args.scanId ? { scanId: args.scanId } : {}),
                 mode: args.mode
               },
               { timeoutMs: 60_000 }

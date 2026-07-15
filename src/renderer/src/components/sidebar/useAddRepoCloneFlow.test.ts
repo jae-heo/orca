@@ -217,4 +217,40 @@ describe('useAddRepoCloneFlow', () => {
     })
     expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'clone_url')
   })
+
+  it('clones through an SSH host owned by the selected runtime environment', async () => {
+    const repo = makeRepo({ id: 'runtime-ssh-repo', connectionId: 'ssh-p8' })
+    mocks.callRuntimeRpc.mockResolvedValue({ repo })
+    mocks.fetchWorktrees.mockResolvedValue(true)
+    const { useAddRepoCloneFlow } = await import('./useAddRepoCloneFlow')
+
+    const result = useAddRepoCloneFlow({
+      step: 'clone',
+      activeRuntimeEnvironmentId: 'env-1',
+      sshTargetId: 'ssh-p8',
+      workspaceDir: '/local/workspace',
+      fetchWorktrees: mocks.fetchWorktrees,
+      onGitRepoReady: mocks.onGitRepoReady
+    })
+    await result.handleClone()
+
+    expect(mocks.callRuntimeRpc).toHaveBeenCalledWith(
+      { kind: 'environment', environmentId: 'env-1' },
+      'repo.cloneRemote',
+      {
+        connectionId: 'ssh-p8',
+        url: 'https://github.com/stablyai/orca.git',
+        destination: '/srv'
+      },
+      { timeoutMs: 10 * 60_000 }
+    )
+    expect(mocks.cloneRemote).not.toHaveBeenCalled()
+    expect(mocks.storeState.repos).toEqual([
+      expect.objectContaining({
+        id: repo.id,
+        connectionId: 'ssh-p8',
+        executionHostId: 'runtime:env-1'
+      })
+    ])
+  })
 })

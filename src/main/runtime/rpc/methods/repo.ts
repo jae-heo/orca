@@ -27,9 +27,17 @@ const RepoCreate = z.object({
   kind: z.enum(['git', 'folder']).optional()
 })
 
+const SshRepoCreate = RepoCreate.extend({
+  connectionId: requiredString('Missing SSH target')
+})
+
 const RepoClone = z.object({
   url: requiredString('Missing clone URL'),
   destination: requiredString('Missing clone destination')
+})
+
+const SshRepoClone = RepoClone.extend({
+  connectionId: requiredString('Missing SSH target')
 })
 
 const RepoSetBaseRef = z.object({
@@ -90,6 +98,7 @@ const ProjectGroupImportNested = z.discriminatedUnion('mode', [
     parentPath: requiredString('Missing parent path'),
     groupName: z.string().optional().default(''),
     projectPaths: z.array(z.string()),
+    connectionId: OptionalString,
     mode: z.literal('group')
   }),
   z.object({
@@ -98,6 +107,7 @@ const ProjectGroupImportNested = z.discriminatedUnion('mode', [
     // imports do not create a group but share the same renderer payload shape.
     groupName: z.string().optional().default(''),
     projectPaths: z.array(z.string()),
+    connectionId: OptionalString,
     mode: z.literal('separate')
   })
 ])
@@ -202,6 +212,17 @@ export const REPO_METHODS: RpcMethod[] = [
       runtime.createRepo(params.parentPath, params.name, params.kind)
   }),
   defineMethod({
+    name: 'repo.createRemote',
+    params: SshRepoCreate,
+    handler: async (params, { runtime }) =>
+      runtime.createSshRepo({
+        connectionId: params.connectionId,
+        parentPath: params.parentPath,
+        name: params.name,
+        kind: params.kind ?? 'git'
+      })
+  }),
+  defineMethod({
     name: 'repo.gitAvailable',
     params: null,
     handler: async (_params, { runtime }) => ({ available: await runtime.isGitAvailable() })
@@ -212,6 +233,16 @@ export const REPO_METHODS: RpcMethod[] = [
     handler: async (params, { runtime }) => ({
       repo: await runtime.cloneRepo(params.url, params.destination)
     })
+  }),
+  defineMethod({
+    name: 'repo.cloneRemote',
+    params: SshRepoClone,
+    handler: async (params, { runtime }) =>
+      runtime.cloneSshRepo({
+        connectionId: params.connectionId,
+        url: params.url,
+        destination: params.destination
+      })
   }),
   defineMethod({
     name: 'repo.show',

@@ -274,4 +274,38 @@ describe('useCreateRepo default-checkout handoff', () => {
     })
     expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
   })
+
+  it('creates projects through an SSH host owned by the selected runtime environment', async () => {
+    const repo = makeRepo({ connectionId: 'ssh-p8', path: '/srv/created' })
+    mocks.callRuntimeRpc.mockResolvedValue({ repo })
+    mocks.fetchWorktrees.mockResolvedValue(true)
+    const { useCreateRepo } = await import('./useCreateRepo')
+
+    const result = useCreateRepo(mocks.fetchWorktrees, vi.fn(), mocks.onGitRepoReady, {
+      hostId: 'runtime:env-1',
+      runtimeEnvironmentId: 'env-1',
+      sshTargetId: 'ssh-p8'
+    })
+    await result.handleCreate()
+
+    expect(mocks.callRuntimeRpc).toHaveBeenCalledWith(
+      { kind: 'environment', environmentId: 'env-1' },
+      'repo.createRemote',
+      {
+        connectionId: 'ssh-p8',
+        parentPath: '/projects',
+        name: 'created',
+        kind: 'git'
+      },
+      { timeoutMs: 60_000 }
+    )
+    expect(mocks.createRemoteRepo).not.toHaveBeenCalled()
+    expect(mocks.storeState.repos).toEqual([
+      expect.objectContaining({
+        id: repo.id,
+        connectionId: 'ssh-p8',
+        executionHostId: 'runtime:env-1'
+      })
+    ])
+  })
 })

@@ -263,7 +263,10 @@ export function useAddRepoNestedImportFlow({
         state.closeModal()
         state.openModal('confirm-non-git-folder', {
           folderPath: path,
-          connectionId: nestedConnectionId
+          connectionId: nestedConnectionId,
+          ...(activeRuntimeEnvironmentId?.trim()
+            ? { runtimeEnvironmentId: activeRuntimeEnvironmentId }
+            : {})
         })
         return
       }

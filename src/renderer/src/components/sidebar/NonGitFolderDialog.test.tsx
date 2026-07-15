@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import type * as ReactModule from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Repo } from '../../../../shared/types'
 
 type ButtonCapture = {
   label: string
@@ -9,6 +10,7 @@ type ButtonCapture = {
 
 const mocks = vi.hoisted(() => ({
   buttons: [] as ButtonCapture[],
+  callRuntimeRpc: vi.fn(),
   state: {
     activeModal: 'confirm-non-git-folder',
     modalData: {
@@ -17,6 +19,12 @@ const mocks = vi.hoisted(() => ({
     } as Record<string, unknown>,
     closeModal: vi.fn(),
     addNonGitFolder: vi.fn(),
+    fetchWorktrees: vi.fn(),
+    repos: [] as Repo[],
+    worktreesByRepo: {},
+    settings: {},
+    projects: [],
+    projectHostSetups: [],
     runtimeEnvironments: [{ id: 'env-1', name: 'Remote Mac' }]
   }
 }))
@@ -77,6 +85,14 @@ vi.mock('@/lib/worktree-activation', () => ({
   activateAndRevealWorktree: vi.fn()
 }))
 
+vi.mock('@/runtime/runtime-rpc-client', () => ({
+  callRuntimeRpc: mocks.callRuntimeRpc
+}))
+
+vi.mock('@/lib/onboarding-project-checklist', () => ({
+  markOnboardingProjectAdded: vi.fn()
+}))
+
 import NonGitFolderDialog from './NonGitFolderDialog'
 
 describe('NonGitFolderDialog', () => {
@@ -89,6 +105,19 @@ describe('NonGitFolderDialog', () => {
       runtimeEnvironmentId: 'env-1'
     }
     mocks.state.runtimeEnvironments = [{ id: 'env-1', name: 'Remote Mac' }]
+    mocks.state.repos = []
+    mocks.state.worktreesByRepo = {}
+    mocks.callRuntimeRpc.mockResolvedValue({
+      repo: {
+        id: 'folder-p8',
+        path: '/srv/non-git',
+        displayName: 'non-git',
+        badgeColor: '#737373',
+        addedAt: 1,
+        kind: 'folder',
+        connectionId: 'ssh-p8'
+      }
+    })
   })
 
   it('shows the checked host in the folder confirmation', () => {
@@ -108,5 +137,36 @@ describe('NonGitFolderDialog', () => {
       runtimeEnvironmentId: 'env-1'
     })
     expect(mocks.state.closeModal).toHaveBeenCalled()
+  })
+
+  it('routes runtime-owned SSH folders through the source server', async () => {
+    mocks.state.modalData = {
+      folderPath: '/srv/non-git',
+      connectionId: 'ssh-p8',
+      runtimeEnvironmentId: 'env-1'
+    }
+    renderToStaticMarkup(<NonGitFolderDialog />)
+
+    const button = mocks.buttons.find((entry) => entry.label.includes('Open as Folder'))
+    button?.onClick?.()
+
+    await vi.waitFor(() => {
+      expect(mocks.callRuntimeRpc).toHaveBeenCalledWith(
+        { kind: 'environment', environmentId: 'env-1' },
+        'repo.addRemote',
+        {
+          connectionId: 'ssh-p8',
+          remotePath: '/srv/non-git',
+          kind: 'folder'
+        }
+      )
+    })
+    expect(mocks.state.repos).toEqual([
+      expect.objectContaining({
+        id: 'folder-p8',
+        connectionId: 'ssh-p8',
+        executionHostId: 'runtime:env-1'
+      })
+    ])
   })
 })

@@ -4542,7 +4542,9 @@
           "addRemoteHostTooltip": "로그인할 수 있는 시스템의 경우 SSH를 선택하고 Orca 서버의 경우 원격 서버를 선택합니다.",
           "addSshHostDetail": "SSH를 통해 기존 머신을 사용합니다.",
           "addRemoteServerDetail": "다른 컴퓨터에서 실행 중인 Orca와 페어링합니다.",
-          "addRemoteHostDetail": "SSH 호스트 또는 Orca 서버"
+          "addRemoteHostDetail": "SSH 호스트 또는 Orca 서버",
+          "from": "접속 위치",
+          "addSshHostForSourceDetail": "선택한 접속 위치의 서버에 추가합니다."
         },
         "sidebarHostOptions": {
           "3e102f111c": "모든 호스트",
@@ -4642,7 +4644,10 @@
           "3b7e4a1c96": "외부 워크트리 숨기기"
         },
         "useAddRepoHostSelection": {
-          "connectionFailed": "SSH 연결에 실패했습니다."
+          "connectionFailed": "SSH 연결에 실패했습니다.",
+          "thisServer": "이 서버",
+          "thisComputer": "이 컴퓨터",
+          "sshViaServer": "{{value0}} 경유 SSH"
         },
         "AddRemoteHostDialog": {
           "sshHostRequired": "호스트 또는 SSH 구성 별칭이 필요합니다.",

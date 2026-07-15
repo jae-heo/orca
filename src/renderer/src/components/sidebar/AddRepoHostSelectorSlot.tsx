@@ -10,22 +10,28 @@ export function AddRepoHostSelectorSlot({
 }) {
   const [addRemoteHostMode, setAddRemoteHostMode] = useState<AddRemoteHostMode | null>(null)
   const selectedRuntimeEnvironment =
-    hostSelection.selectedParsedHost?.kind === 'runtime'
+    hostSelection.selectedSourceParsed?.kind === 'runtime'
       ? {
-          id: hostSelection.selectedParsedHost.environmentId,
+          id: hostSelection.selectedSourceParsed.environmentId,
           label:
-            hostSelection.hostOptions.find((host) => host.id === hostSelection.selectedHostId)
-              ?.label ?? hostSelection.selectedParsedHost.environmentId
+            hostSelection.sourceOptions.find(
+              (source) => source.id === hostSelection.selectedSourceId
+            )?.label ?? hostSelection.selectedSourceParsed.environmentId
         }
       : null
 
   return (
     <>
       <AddRepoHostSelector
+        sources={hostSelection.sourceOptions}
+        selectedSourceId={hostSelection.selectedSourceId}
+        sourceOpen={hostSelection.sourceSelectorOpen}
+        onSourceOpenChange={hostSelection.setSourceSelectorOpen}
+        onSelectSource={(sourceId) => void hostSelection.handleSelectAddProjectSource(sourceId)}
         hosts={hostSelection.hostOptions}
         selectedHostId={hostSelection.selectedHostId}
-        open={hostSelection.hostSelectorOpen}
-        onOpenChange={hostSelection.setHostSelectorOpen}
+        hostOpen={hostSelection.hostSelectorOpen}
+        onHostOpenChange={hostSelection.setHostSelectorOpen}
         onSelectHost={(hostId) => void hostSelection.handleSelectAddProjectHost(hostId)}
         onConnectHost={(hostId) => void hostSelection.handleConnectAddProjectHost(hostId)}
         onAddSshHost={() => setAddRemoteHostMode('ssh')}

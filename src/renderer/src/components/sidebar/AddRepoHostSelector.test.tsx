@@ -29,31 +29,37 @@ vi.mock('@/components/ui/command', () => ({
 }))
 
 describe('AddRepoHostSelector', () => {
-  it('shows a remote host setup menu when Local Mac is the only host', () => {
+  const localSource = {
+    id: 'local' as const,
+    label: 'Local Mac',
+    detail: 'This computer',
+    kind: 'local' as const,
+    health: 'local' as const,
+    presence: 'local' as const
+  }
+
+  it('shows separate From and Host controls with scoped setup actions', () => {
     const html = renderToStaticMarkup(
       <AddRepoHostSelector
-        hosts={[
-          {
-            id: 'local',
-            label: 'Local Mac',
-            detail: 'This computer',
-            kind: 'local',
-            health: 'local',
-            presence: 'local'
-          }
-        ]}
+        sources={[localSource]}
+        selectedSourceId="local"
+        sourceOpen
+        onSourceOpenChange={vi.fn()}
+        onSelectSource={vi.fn()}
+        hosts={[{ ...localSource, label: 'This computer', detail: 'Local Mac' }]}
         selectedHostId="local"
-        open
-        onOpenChange={vi.fn()}
+        hostOpen
+        onHostOpenChange={vi.fn()}
         onSelectHost={vi.fn()}
         onAddSshHost={vi.fn()}
         onAddRemoteServer={vi.fn()}
       />
     )
 
-    expect(html).toContain('Add remote host')
+    expect(html).toContain('From')
+    expect(html).toContain('Host')
     expect(html).toContain('Add SSH host')
-    expect(html).toContain('Use an existing machine over SSH.')
+    expect(html).toContain('Add it to the selected source server.')
     expect(html).toContain('Add remote server')
     expect(html).toContain('Pair with Orca running on another computer.')
   })
@@ -61,15 +67,13 @@ describe('AddRepoHostSelector', () => {
   it('shows disconnected SSH hosts with a connect action in Add Project', () => {
     const html = renderToStaticMarkup(
       <AddRepoHostSelector
+        sources={[localSource]}
+        selectedSourceId="local"
+        sourceOpen={false}
+        onSourceOpenChange={vi.fn()}
+        onSelectSource={vi.fn()}
         hosts={[
-          {
-            id: 'local',
-            label: 'Local Mac',
-            detail: 'This computer',
-            kind: 'local',
-            health: 'local',
-            presence: 'local'
-          },
+          { ...localSource, label: 'This computer', detail: 'Local Mac' },
           {
             id: 'ssh:ssh-1',
             label: 'Builder',
@@ -80,8 +84,8 @@ describe('AddRepoHostSelector', () => {
           }
         ]}
         selectedHostId="ssh:ssh-1"
-        open={false}
-        onOpenChange={vi.fn()}
+        hostOpen={false}
+        onHostOpenChange={vi.fn()}
         onSelectHost={vi.fn()}
       />
     )
@@ -97,15 +101,8 @@ describe('AddRepoHostSelector', () => {
   it('shows exact update guidance for incompatible runtime hosts', () => {
     const html = renderToStaticMarkup(
       <AddRepoHostSelector
-        hosts={[
-          {
-            id: 'local',
-            label: 'Local Mac',
-            detail: 'This computer',
-            kind: 'local',
-            health: 'local',
-            presence: 'local'
-          },
+        sources={[
+          localSource,
           {
             id: 'runtime:old-server',
             label: 'Old server',
@@ -122,9 +119,14 @@ describe('AddRepoHostSelector', () => {
             }
           }
         ]}
+        selectedSourceId="runtime:old-server"
+        sourceOpen
+        onSourceOpenChange={vi.fn()}
+        onSelectSource={vi.fn()}
+        hosts={[localSource]}
         selectedHostId="runtime:old-server"
-        open
-        onOpenChange={vi.fn()}
+        hostOpen={false}
+        onHostOpenChange={vi.fn()}
         onSelectHost={vi.fn()}
       />
     )

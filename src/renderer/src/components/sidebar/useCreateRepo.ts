@@ -12,6 +12,7 @@ import type { Repo } from '../../../../shared/types'
 import { translate } from '@/i18n/i18n'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
 import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
+import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
 
 export function useCreateRepo(
   fetchWorktrees: (
@@ -102,12 +103,24 @@ export function useCreateRepo(
       // existing add-folder flows instead of this path.
       const createKind = 'git' as const
       const result = options.sshTargetId
-        ? await window.api.repos.createRemote({
-            connectionId: options.sshTargetId,
-            parentPath,
-            name,
-            kind: createKind
-          })
+        ? options.runtimeEnvironmentId?.trim()
+          ? await callRuntimeRpc<{ repo: Repo } | { error: string }>(
+              target,
+              'repo.createRemote',
+              {
+                connectionId: options.sshTargetId,
+                parentPath,
+                name,
+                kind: createKind
+              },
+              { timeoutMs: 60_000 }
+            )
+          : await window.api.repos.createRemote({
+              connectionId: options.sshTargetId,
+              parentPath,
+              name,
+              kind: createKind
+            })
         : target.kind === 'environment'
           ? await callRuntimeRpc<{ repo: Repo } | { error: string }>(
               target,
@@ -137,7 +150,12 @@ export function useCreateRepo(
         setCreateError(result.error)
         return
       }
-      const repo = result.repo
+      const repo = options.runtimeEnvironmentId?.trim()
+        ? {
+            ...result.repo,
+            executionHostId: toRuntimeExecutionHostId(options.runtimeEnvironmentId.trim())
+          }
+        : result.repo
       const state = useAppStore.getState()
       const existingIdx = state.repos.findIndex((r) => r.id === repo.id)
       // Why: the IPC handler dedupes by path (see repos:create) and returns

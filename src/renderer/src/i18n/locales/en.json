@@ -3663,7 +3663,9 @@
           "addRemoteHostTooltip": "Choose SSH for a machine you can log into, or remote server for an Orca server.",
           "addSshHostDetail": "Use an existing machine over SSH.",
           "addRemoteServerDetail": "Pair with Orca running on another computer.",
-          "addRemoteHostDetail": "SSH host or Orca server"
+          "addRemoteHostDetail": "SSH host or Orca server",
+          "from": "From",
+          "addSshHostForSourceDetail": "Add it to the selected source server."
         },
         "AddRepoNestedImportStep": {
           "496f68cf8c": "Scanning repositories. Click to stop.",
@@ -4642,7 +4644,10 @@
           "3b7e4a1c96": "Hide external worktrees"
         },
         "useAddRepoHostSelection": {
-          "connectionFailed": "SSH connection failed."
+          "connectionFailed": "SSH connection failed.",
+          "thisServer": "This server",
+          "thisComputer": "This computer",
+          "sshViaServer": "SSH via {{value0}}"
         },
         "AddRemoteHostDialog": {
           "sshHostRequired": "Host or SSH config alias is required.",

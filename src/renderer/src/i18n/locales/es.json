@@ -4542,7 +4542,9 @@
           "addRemoteHostTooltip": "Elige SSH para una máquina donde puedas iniciar sesión, o servidor remoto para un servidor de Orca.",
           "addSshHostDetail": "Usa una máquina existente mediante SSH.",
           "addRemoteServerDetail": "Empareja con Orca ejecutándose en otro equipo.",
-          "addRemoteHostDetail": "Host SSH o servidor Orca"
+          "addRemoteHostDetail": "Host SSH o servidor Orca",
+          "from": "Desde",
+          "addSshHostForSourceDetail": "Añádelo al servidor de origen seleccionado."
         },
         "sidebarHostOptions": {
           "3e102f111c": "Todos los hosts",
@@ -4642,7 +4644,10 @@
           "3b7e4a1c96": "Ocultar worktrees externos"
         },
         "useAddRepoHostSelection": {
-          "connectionFailed": "La conexión SSH falló."
+          "connectionFailed": "La conexión SSH falló.",
+          "thisServer": "Este servidor",
+          "thisComputer": "Este ordenador",
+          "sshViaServer": "SSH a través de {{value0}}"
         },
         "AddRemoteHostDialog": {
           "sshHostRequired": "Se requiere un host o alias de configuración SSH.",

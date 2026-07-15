@@ -64,10 +64,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
   })
 
   const hostSelection = useAddRepoHostSelection({ isOpen: activeModal === 'add-repo', setStep })
-  const selectedRuntimeEnvironmentId =
-    hostSelection.selectedParsedHost?.kind === 'runtime'
-      ? hostSelection.selectedParsedHost.environmentId
-      : null
+  const selectedRuntimeEnvironmentId = hostSelection.selectedRuntimeEnvironmentId
   const { showRemoteNestedRepoReview, trackRemoteNestedScanResult } = useAddRepoRemoteNestedScan({
     setActiveNestedScanId,
     showNestedRepoReview
@@ -160,7 +157,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
   const droppedLocalPath =
     typeof modalData.droppedLocalPath === 'string' ? modalData.droppedLocalPath : ''
   const isRuntimeEnvironmentActive = Boolean(selectedRuntimeEnvironmentId)
-  const selectedHostKind = hostSelection.selectedParsedHost?.kind
+  const selectedHostKind = hostSelection.selectedHostKind
   const { handleBrowse, resetLocalFolderFlow } = useAddRepoLocalFolderFlow({
     isOpen,
     droppedLocalPath,
@@ -316,7 +313,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
           hostSelection.hostOptions.find((host) => host.id === hostSelection.selectedHostId)
             ?.label ?? hostSelection.selectedHostId
         }
-        lockSshTargetSelection={hostSelection.selectedParsedHost?.kind === 'ssh'}
+        lockSshTargetSelection={Boolean(hostSelection.selectedSshTargetId)}
         remotePath={remotePath}
         remoteError={remoteError}
         isAddingRemote={isAddingRemote}
@@ -329,7 +326,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
         createError={createError}
         isCreating={isCreating}
         hostSelector={<AddRepoHostSelectorSlot hostSelection={hostSelection} />}
-        showRemoteAction={selectedHostKind === 'runtime'}
+        showRemoteAction={false}
         browseHostKind={
           selectedHostKind === 'ssh' || selectedHostKind === 'runtime' ? selectedHostKind : 'local'
         }

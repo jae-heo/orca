@@ -14,6 +14,10 @@ import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { buildDismissedOnboardingFolderAgentStartup } from '@/lib/onboarding-folder-agent-startup'
 import { markOnboardingProjectAdded } from '@/lib/onboarding-project-checklist'
 import { translate } from '@/i18n/i18n'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import type { Repo } from '../../../../shared/types'
+import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
+import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
 
 const NonGitFolderDialog = React.memo(function NonGitFolderDialog() {
   const activeModal = useAppStore((s) => s.activeModal)
@@ -52,20 +56,33 @@ const NonGitFolderDialog = React.memo(function NonGitFolderDialog() {
       void (async () => {
         try {
           const stateBeforeAdd = useAppStore.getState()
-          const result = await window.api.repos.addRemote({
-            connectionId,
-            remotePath: folderPath,
-            kind: 'folder'
-          })
+          const result = runtimeEnvironmentId
+            ? await callRuntimeRpc<{ repo: Repo } | { error: string }>(
+                { kind: 'environment', environmentId: runtimeEnvironmentId },
+                'repo.addRemote',
+                {
+                  connectionId,
+                  remotePath: folderPath,
+                  kind: 'folder'
+                }
+              )
+            : await window.api.repos.addRemote({
+                connectionId,
+                remotePath: folderPath,
+                kind: 'folder'
+              })
           if ('error' in result) {
             throw new Error(result.error)
           }
-          const repo = result.repo
+          const repo = runtimeEnvironmentId
+            ? {
+                ...result.repo,
+                executionHostId: toRuntimeExecutionHostId(runtimeEnvironmentId)
+              }
+            : result.repo
           const state = useAppStore.getState()
           const hadProjectBeforeAdd = stateBeforeAdd.repos.length > 0
-          if (!state.repos.some((r) => r.id === repo.id)) {
-            useAppStore.setState({ repos: [...state.repos, repo] })
-          }
+          upsertAddedRepoWithProjectHostSetup(repo)
           await markOnboardingProjectAdded('addedFolder')
           await state.fetchWorktrees(repo.id)
           // Why: mirror the local non-git folder flow — without this the

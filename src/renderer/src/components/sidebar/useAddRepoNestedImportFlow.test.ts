@@ -152,4 +152,20 @@ describe('useAddRepoNestedImportFlow open folder fallback', () => {
       connectionId: 'ssh-builder'
     })
   })
+
+  it('keeps the runtime owner when a nested SSH root opens as a folder', async () => {
+    const { handleOpenNestedRootFolder } = useTestAddRepoNestedImportFlow({
+      nestedConnectionId: 'ssh-p8',
+      nestedRuntimeKind: 'ssh',
+      activeRuntimeEnvironmentId: 'linux-jae'
+    })
+
+    await handleOpenNestedRootFolder()
+
+    expect(mocks.state.openModal).toHaveBeenCalledWith('confirm-non-git-folder', {
+      folderPath: '/workspace/platform',
+      connectionId: 'ssh-p8',
+      runtimeEnvironmentId: 'linux-jae'
+    })
+  })
 })
