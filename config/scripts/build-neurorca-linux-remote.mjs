@@ -58,6 +58,7 @@ export function renderRemoteBuildCommand(config, expectedCommit) {
   const sourceDir = shellQuote(config.linux.sourceDir)
   const branch = shellQuote(config.requiredBranch)
   const artifact = shellQuote(config.linux.buildAppImage)
+  const provenance = shellQuote(`${config.linux.buildAppImage}${config.provenance.sidecarSuffix}`)
   const commit = shellQuote(expectedCommit)
   return `set -euo pipefail
 cd ${sourceDir}
@@ -68,7 +69,7 @@ test "$(git rev-parse FETCH_HEAD)" = ${commit}
 git merge --ff-only FETCH_HEAD
 pnpm install --frozen-lockfile
 pnpm build:neurorca:linux
-sha256sum ${artifact} "${artifact}.provenance.json"`
+sha256sum ${artifact} ${provenance}`
 }
 
 export function buildNeurorcaLinuxRemote(options = {}) {
