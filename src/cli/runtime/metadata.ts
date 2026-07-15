@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { readFileSync } from 'node:fs'
 import {
   findTransport,
@@ -41,7 +41,8 @@ export function tryReadMetadata(userDataPath: string): RuntimeMetadata | null {
 
 export function getDefaultUserDataPath(
   platform: NodeJS.Platform = process.platform,
-  homeDir = homedir()
+  homeDir = homedir(),
+  distribution: 'orca' | 'neurorca' = getCliDistribution()
 ): string {
   // Why: in dev mode (and for parallel Orca instances), the Electron app writes
   // runtime metadata to a separate userData directory (e.g. `orca-dev`) to avoid
@@ -50,8 +51,9 @@ export function getDefaultUserDataPath(
   if (process.env.ORCA_USER_DATA_PATH) {
     return process.env.ORCA_USER_DATA_PATH
   }
+  const directoryName = distribution === 'neurorca' ? 'Neurorca' : 'orca'
   if (platform === 'darwin') {
-    return join(homeDir, 'Library', 'Application Support', 'orca')
+    return join(homeDir, 'Library', 'Application Support', directoryName)
   }
   if (platform === 'win32') {
     const appData = process.env.APPDATA
@@ -61,10 +63,17 @@ export function getDefaultUserDataPath(
         'APPDATA is not set, so the Orca runtime metadata path cannot be resolved.'
       )
     }
-    return join(appData, 'orca')
+    return join(appData, directoryName)
   }
   // Why: the CLI must find the same metadata file Electron writes in packaged
   // runs, so this mirrors Electron's default userData base instead of inventing
   // a CLI-specific config path.
-  return join(process.env.XDG_CONFIG_HOME || join(homeDir, '.config'), 'orca')
+  return join(process.env.XDG_CONFIG_HOME || join(homeDir, '.config'), directoryName)
+}
+
+function getCliDistribution(): 'orca' | 'neurorca' {
+  if (process.env.ORCA_CLI_COMMAND === 'neurorca') {
+    return 'neurorca'
+  }
+  return basename(process.execPath).toLowerCase().startsWith('neurorca') ? 'neurorca' : 'orca'
 }
