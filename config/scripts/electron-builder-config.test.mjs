@@ -95,6 +95,28 @@ describe('electron-builder config', () => {
     )
   })
 
+  it('unpacks every managed agent hook implementation used by the packaged CLI', () => {
+    expect(electronBuilderConfig.asarUnpack).toEqual(
+      expect.arrayContaining([
+        'out/main/agent-hooks/**',
+        'out/main/amp/**',
+        'out/main/antigravity/**',
+        'out/main/claude/**',
+        'out/main/codex/**',
+        'out/main/command-code/**',
+        'out/main/copilot/**',
+        'out/main/cursor/**',
+        'out/main/devin/**',
+        'out/main/droid/**',
+        'out/main/gemini/**',
+        'out/main/grok/**',
+        'out/main/hermes/**',
+        'out/main/kimi/**',
+        'out/main/openclaude/**'
+      ])
+    )
+  })
+
   // Why: without the unpacked entry the watcher client silently falls back to
   // in-process @parcel/watcher, reintroducing the #7547 main-process crash.
   it('unpacks the forked parcel-watcher process entry', () => {
