@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "requiredBranch": "local/neurorca",
   "featureRefs": ["origin/fix/headless-serve-ssh-handlers", "origin/feat/database-query-tabs"],
+  "provenance": {
+    "resourceName": "neurorca-build-provenance.json",
+    "sidecarSuffix": ".provenance.json"
+  },
   "macos": {
     "bundleId": "com.neurocore.neurorca",
     "obsoleteBundleIds": ["com.stablyai.orca"],

@@ -19,6 +19,7 @@ import {
   parseCommandJson,
   projectDir
 } from './neurorca-operations-config.mjs'
+import { readNeurorcaProvenance } from './neurorca-build-provenance.mjs'
 
 export function parseMacInstallArgs(argv) {
   const options = { appPath: null, dryRun: false }
@@ -79,6 +80,12 @@ function sha256(filePath) {
 
 function appBinary(appPath) {
   return join(appPath, 'Contents', 'MacOS', 'Neurorca')
+}
+
+function appProvenance(appPath, config) {
+  return readNeurorcaProvenance(
+    join(appPath, 'Contents', 'Resources', config.provenance.resourceName)
+  )
 }
 
 export function shouldPruneMacApp(appPath, canonicalPath, bundleId, obsoleteBundleIds) {
@@ -209,8 +216,17 @@ export function installNeurorcaMac(options = {}) {
   )
 
   const version = readBundleValue(sourceApp, 'CFBundleShortVersionString')
+  const sourceProvenance = appProvenance(sourceApp, config)
   const sourceHash = sha256(appBinary(sourceApp))
   const installedHash = existsSync(appBinary(canonical)) ? sha256(appBinary(canonical)) : null
+  let installedCommit = null
+  try {
+    installedCommit = appProvenance(canonical, config).sourceCommit
+  } catch {
+    // Older local builds had no provenance and must be replaced once.
+  }
+  const sameBuild =
+    sourceHash === installedHash && sourceProvenance.sourceCommit === installedCommit
   const duplicateCount = relatedApplicationCopies(config).filter(
     ({ appPath }) => resolve(appPath) !== resolve(canonical)
   ).length
@@ -221,14 +237,23 @@ export function installNeurorcaMac(options = {}) {
       version,
       sourceHash,
       installedHash,
+      sourceCommit: sourceProvenance.sourceCommit,
+      installedCommit,
       duplicateCount,
       cliTarget: currentCliTarget(config),
-      changed: sourceHash !== installedHash || duplicateCount > 0
+      changed: !sameBuild || duplicateCount > 0
     }
   }
-  if (sourceHash === installedHash) {
+  if (sameBuild) {
     pruneApplicationCopies(config)
-    return { sourceApp, canonical, version, sourceHash, changed: duplicateCount > 0 }
+    return {
+      sourceApp,
+      canonical,
+      version,
+      sourceHash,
+      sourceCommit: sourceProvenance.sourceCommit,
+      changed: duplicateCount > 0
+    }
   }
 
   const staged = `/Applications/.Neurorca.install-${process.pid}.app`
@@ -265,7 +290,15 @@ export function installNeurorcaMac(options = {}) {
     waitForReady(installedCli)
     pruneApplicationCopies(config)
     rmSync(rollback, { recursive: true, force: true })
-    return { sourceApp, canonical, version, sourceHash, changed: true, terminalCount }
+    return {
+      sourceApp,
+      canonical,
+      version,
+      sourceHash,
+      sourceCommit: sourceProvenance.sourceCommit,
+      changed: true,
+      terminalCount
+    }
   } catch (error) {
     if (canonicalAppRunning(canonical)) {
       // Why: removing a live bundle can orphan helpers; preserve both bundles

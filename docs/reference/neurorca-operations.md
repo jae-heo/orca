@@ -78,9 +78,11 @@ pnpm neurorca:doctor
 
 The doctor is read-only. It verifies the integration branch and feature merges,
 Mac bundle identity and duplicates, CLI target, current build match, Linux
-service and runtime readiness, old installation remnants, protected user data,
-the live terminal count, and whether local/remote Node versions match the
-repository's declared engine.
+build-checkout cleanliness and artifact match, service and runtime readiness,
+old installation remnants, protected user data, the live terminal count, and
+whether local/remote Node versions match the repository's declared engine. It
+also compares the embedded Mac commit, Linux source commit, and the checksummed
+AppImage provenance sidecars.
 
 - `FAIL` is a blocker.
 - A dirty-worktree warning blocks upstream sync and reproducible remote builds.
@@ -105,15 +107,16 @@ Use this order. Each gate must pass before continuing.
    deliberately.
 4. Run `pnpm install --frozen-lockfile`, relevant focused tests, and the
    appropriate type checks.
-5. Build and install the Mac app:
+5. Commit and push the reviewed sync result. Both platform build wrappers
+   reject dirty source, the wrong branch, and commits absent from
+   `origin/local/neurorca`.
+6. Build and install the Mac app:
 
    ```bash
    pnpm build:neurorca:mac
    pnpm neurorca:install:mac
    ```
 
-6. Push the reviewed `local/neurorca` commit. The remote Linux build refuses an
-   uncommitted or unpushed source state.
 7. Build on the target Linux architecture:
 
    ```bash
@@ -126,7 +129,8 @@ Use this order. Each gate must pass before continuing.
    pnpm neurorca:deploy:linux
    ```
 
-9. Run `pnpm neurorca:doctor` again and exercise one Mac-local project, one
+9. Run `pnpm neurorca:doctor` again. `deployment-source-commit` must pass, then
+   exercise one Mac-local project, one
    `linux-jae` project, and one `p8` project before declaring the update done.
 
 The explicit `--allow-live-terminal-loss` deploy option is destructive. A Codex
@@ -136,8 +140,9 @@ of every listed live terminal.
 ## Mac installation contract
 
 `pnpm neurorca:install:mac` selects the current CPU architecture's build,
-verifies the Neurorca bundle id and code signature, and compares the executable
-hash before doing work. When replacement is needed it:
+verifies the Neurorca bundle id, code signature, and embedded source commit,
+then compares the executable hash and source commit before doing work. When
+replacement is needed it:
 
 1. stages a verified app bundle;
 2. asks the desktop app to quit gracefully;
@@ -161,12 +166,14 @@ matters on SELinux hosts: executing a home-directory AppImage from systemd can
 fail with `203/EXEC` and `Permission denied` even when its Unix mode is
 executable.
 
-`pnpm neurorca:deploy:linux` checks current runtime readiness and SHA-256 values
-before requesting sudo. It is a no-op when the installed and built artifacts
-match. Otherwise it checks the live terminal count before sudo, and the root
-installer checks it again immediately before restart. The root installer uses
-an atomic candidate/rollback swap, restores SELinux context, waits for the new
-runtime to become ready, and restores the previous AppImage on failure.
+`pnpm neurorca:deploy:linux` checks current runtime readiness, the AppImage
+SHA-256, and its commit provenance before requesting sudo. It is a no-op when
+the installed binary and provenance both match. A missing sidecar on identical
+binary bytes is repaired without a restart. A binary change checks the live
+terminal count before sudo, and the root installer checks it again immediately
+before restart. The root installer atomically swaps both the AppImage and
+sidecar, restores SELinux context, waits for the new runtime to become ready,
+and restores both previous files on failure.
 
 This deploy command updates an existing service; it is not a bootstrap command.
 Do not rewrite the unit, change its user, port, or pairing address during a

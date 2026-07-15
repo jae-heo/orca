@@ -2,6 +2,10 @@
   <a href="https://onOrca.dev"><img src="resources/build/icon.png" alt="Orca" width="64" valign="middle" /></a> Orca
 </h1>
 
+> **Neurorca integration branch:** this repository's `local/neurorca` branch
+> carries Neurocore's headless SSH/project and database-tab integration. See
+> [NEURORCA.md](NEURORCA.md) for the supported build and update workflow.
+
 <p align="center">
   <a href="https://github.com/stablyai/orca/stargazers"><img src="https://badgen.net/github/stars/stablyai/orca?label=%E2%98%85" alt="GitHub stars" /></a>
   <a href="https://github.com/stablyai/orca/releases"><img src="docs/assets/readme-downloads.svg" alt="Total downloads across all releases" /></a>

@@ -75,7 +75,7 @@
     "build:neurorca:mac": "node config/scripts/run-neurorca-macos-build.mjs",
     "build:mac:release": "node config/scripts/verify-macos-release-env.mjs && ORCA_MAC_RELEASE=1 pnpm run build:desktop && ORCA_MAC_RELEASE=1 pnpm run build:computer-macos && ORCA_MAC_RELEASE=1 pnpm run build:notification-status-macos && pnpm run ensure:electron-runtime && ORCA_MAC_RELEASE=1 electron-builder --config config/electron-builder.config.cjs --mac",
     "build:linux": "pnpm run build:desktop && pnpm run ensure:electron-runtime && electron-builder --config config/electron-builder.config.cjs --linux AppImage deb",
-    "build:neurorca:linux": "NEURORCA_BUILD=1 pnpm run build:linux",
+    "build:neurorca:linux": "node config/scripts/run-neurorca-linux-build.mjs",
     "neurorca:sync": "node config/scripts/sync-neurorca-upstream.mjs",
     "neurorca:doctor": "node config/scripts/doctor-neurorca.mjs",
     "neurorca:install:mac": "node config/scripts/install-neurorca-macos.mjs",

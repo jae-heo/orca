@@ -19,6 +19,7 @@ describe('Neurorca remote Linux build contract', () => {
     expect(command).toContain('git merge --ff-only FETCH_HEAD')
     expect(command).toContain('pnpm install --frozen-lockfile')
     expect(command).toContain('pnpm build:neurorca:linux')
+    expect(command).toContain('.provenance.json')
     expect(command).not.toContain('reset --hard')
   })
 })

@@ -24,6 +24,10 @@ describe('Neurorca durable operations handoff', () => {
     expect(agents).toContain('pnpm neurorca:doctor')
     expect(agents).toContain('Never identify a detached Neurorca terminal daemon as stale')
     expect(agents).toContain('Pairing URLs and device tokens are secrets')
+    const doctor = read('config/scripts/doctor-neurorca.mjs')
+    expect(doctor).toContain('linux-build-tree')
+    expect(doctor).toContain('linux-build-match')
+    expect(doctor).toContain('deployment-source-commit')
   })
 
   it('documents protected state and the Mac to Linux to p8 topology', () => {
@@ -50,6 +54,7 @@ describe('Neurorca durable operations handoff', () => {
     expect(config.requiredBranch).toBe('local/neurorca')
     expect(config.macos.canonicalAppPath).toBe('/Applications/Neurorca.app')
     expect(config.linux.installedAppImage).toBe('/usr/local/libexec/neurorca-server.AppImage')
+    expect(config.provenance.resourceName).toBe('neurorca-build-provenance.json')
     expect(JSON.stringify(config)).not.toMatch(/runtimeId|deviceToken|pair\?code/)
   })
 

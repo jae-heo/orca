@@ -11,6 +11,7 @@ import {
   parseCommandJson,
   projectDir
 } from './neurorca-operations-config.mjs'
+import { parseNeurorcaProvenance, readNeurorcaProvenance } from './neurorca-build-provenance.mjs'
 
 function parseArgs(argv) {
   const options = { host: null, json: false, skipRemote: false }
@@ -64,7 +65,7 @@ function readBundleId(appPath) {
   return result.status === 0 ? result.stdout.trim() : null
 }
 
-function inspectRepository(checks, config) {
+function inspectRepository(checks, config, deployment) {
   const packageJson = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
   const requiredNode = packageJson.engines?.node
   const currentNode = process.versions.node
@@ -97,6 +98,10 @@ function inspectRepository(checks, config) {
     changedCount === 0 ? 'pass' : 'warn',
     changedCount === 0 ? 'clean' : `${changedCount} changed path(s); upstream sync must wait`
   )
+  const head = git(['rev-parse', 'HEAD'])
+  if (head.status === 0) {
+    deployment.repository = head.stdout.trim()
+  }
 
   for (const ref of config.featureRefs) {
     const exists = git(['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`])
@@ -110,7 +115,7 @@ function inspectRepository(checks, config) {
   }
 }
 
-function inspectMac(checks, config) {
+function inspectMac(checks, config, deployment) {
   if (platform() !== 'darwin') {
     addCheck(checks, 'macos-install', 'warn', `skipped on ${platform()}`)
     return
@@ -171,6 +176,39 @@ function inspectMac(checks, config) {
     addCheck(checks, 'macos-build-match', 'warn', 'current-architecture build output is absent')
   }
 
+  let installedProvenance = null
+  let buildProvenance = null
+  try {
+    installedProvenance = readNeurorcaProvenance(
+      join(canonical, 'Contents', 'Resources', config.provenance.resourceName)
+    )
+    deployment.macos = installedProvenance.sourceCommit
+    addCheck(checks, 'macos-provenance', 'pass', installedProvenance.sourceCommit)
+  } catch (error) {
+    addCheck(checks, 'macos-provenance', 'warn', `missing or invalid: ${error.message}`)
+  }
+  if (buildApp) {
+    try {
+      buildProvenance = readNeurorcaProvenance(
+        join(buildApp, 'Contents', 'Resources', config.provenance.resourceName)
+      )
+    } catch {
+      // Existing build output may predate the provenance contract.
+    }
+  }
+  addCheck(
+    checks,
+    'macos-build-provenance',
+    installedProvenance &&
+      buildProvenance &&
+      installedProvenance.sourceCommit === buildProvenance.sourceCommit
+      ? 'pass'
+      : 'warn',
+    installedProvenance && buildProvenance
+      ? `${installedProvenance.sourceCommit} installed; ${buildProvenance.sourceCommit} built`
+      : 'installed app or build output has no provenance'
+  )
+
   const userDataPath = expandHomePath(config.macos.userDataPath)
   addCheck(
     checks,
@@ -184,7 +222,7 @@ function ssh(host, command, timeout = 30_000) {
   return run('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', host, command], { timeout })
 }
 
-function inspectRemote(checks, config, host) {
+function inspectRemote(checks, config, host, deployment) {
   const nodeVersion = ssh(host, 'node --version')
   const packageJson = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
   const requiredNode = packageJson.engines?.node
@@ -197,6 +235,96 @@ function inspectRemote(checks, config, host) {
       : 'warn',
     `${commandText(nodeVersion) || 'unavailable'}${requiredNode ? `; package requires ${requiredNode}` : ''}`
   )
+
+  const sourceBranch = ssh(host, `cd '${config.linux.sourceDir}' && git branch --show-current`)
+  const remoteBranch = sourceBranch.stdout.trim()
+  addCheck(
+    checks,
+    'linux-build-branch',
+    sourceBranch.status === 0 && remoteBranch === config.requiredBranch ? 'pass' : 'fail',
+    `${remoteBranch || commandText(sourceBranch) || '(unavailable)'}; expected ${config.requiredBranch}`
+  )
+  const sourceStatus = ssh(host, `cd '${config.linux.sourceDir}' && git status --porcelain`)
+  const remoteChangedCount = sourceStatus.stdout.trim()
+    ? sourceStatus.stdout.trim().split('\n').length
+    : 0
+  addCheck(
+    checks,
+    'linux-build-tree',
+    sourceStatus.status === 0 && remoteChangedCount === 0 ? 'pass' : 'warn',
+    sourceStatus.status === 0
+      ? remoteChangedCount === 0
+        ? 'clean'
+        : `${remoteChangedCount} changed path(s); reproducible remote build is blocked`
+      : commandText(sourceStatus) || 'unavailable'
+  )
+  const sourceHead = ssh(host, `cd '${config.linux.sourceDir}' && git rev-parse HEAD`)
+  if (sourceHead.status === 0) {
+    deployment.linuxSource = sourceHead.stdout.trim()
+  }
+
+  const appImageHashes = ssh(
+    host,
+    `sha256sum '${config.linux.buildAppImage}' '${config.linux.installedAppImage}'`
+  )
+  const hashes = appImageHashes.stdout
+    .trim()
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/)[0])
+    .filter((hash) => /^[a-f0-9]{64}$/.test(hash))
+  addCheck(
+    checks,
+    'linux-build-match',
+    appImageHashes.status === 0 && hashes.length === 2 && hashes[0] === hashes[1] ? 'pass' : 'warn',
+    appImageHashes.status === 0 && hashes.length === 2
+      ? hashes[0] === hashes[1]
+        ? hashes[0]
+        : 'built AppImage differs from the installed server'
+      : commandText(appImageHashes) || 'build or installed AppImage is missing'
+  )
+
+  const sidecarSuffix = config.provenance.sidecarSuffix
+  const provenanceFiles = [
+    `${config.linux.buildAppImage}${sidecarSuffix}`,
+    `${config.linux.installedAppImage}${sidecarSuffix}`
+  ]
+  const remoteProvenance = ssh(
+    host,
+    `cat '${provenanceFiles[0]}' && printf '\n' && cat '${provenanceFiles[1]}'`
+  )
+  try {
+    const documents = remoteProvenance.stdout
+      .trim()
+      .split(/\n(?=\{)/)
+      .map((document) => parseNeurorcaProvenance(document, { requireArtifactSha: true }))
+    const [buildProvenance, installedProvenance] = documents
+    const valid =
+      remoteProvenance.status === 0 &&
+      documents.length === 2 &&
+      hashes.length === 2 &&
+      buildProvenance.artifactSha256 === hashes[0] &&
+      installedProvenance.artifactSha256 === hashes[1] &&
+      buildProvenance.sourceCommit === installedProvenance.sourceCommit
+    if (valid) {
+      deployment.linuxBuild = buildProvenance.sourceCommit
+      deployment.linuxInstalled = installedProvenance.sourceCommit
+    }
+    addCheck(
+      checks,
+      'linux-provenance',
+      valid ? 'pass' : 'warn',
+      valid
+        ? `${installedProvenance.sourceCommit}; both checksums verified`
+        : 'build and installed provenance do not match their AppImages'
+    )
+  } catch (error) {
+    addCheck(
+      checks,
+      'linux-provenance',
+      'warn',
+      commandText(remoteProvenance) || `missing or invalid: ${error.message}`
+    )
+  }
 
   const service = config.linux.serviceName
   const active = ssh(host, `systemctl is-active ${service}`)
@@ -274,11 +402,24 @@ export function inspectNeurorca(options = {}) {
   const config = loadNeurorcaOperationsConfig()
   const host = options.host ?? config.linux.defaultHost
   const checks = []
-  inspectRepository(checks, config)
-  inspectMac(checks, config)
+  const deployment = {}
+  inspectRepository(checks, config, deployment)
+  inspectMac(checks, config, deployment)
   if (!options.skipRemote) {
-    inspectRemote(checks, config, host)
+    inspectRemote(checks, config, host, deployment)
   }
+  const required = options.skipRemote
+    ? ['repository', 'macos']
+    : ['repository', 'macos', 'linuxSource', 'linuxBuild', 'linuxInstalled']
+  const commits = required.map((name) => deployment[name]).filter(Boolean)
+  const complete = commits.length === required.length
+  const aligned = complete && new Set(commits).size === 1
+  addCheck(
+    checks,
+    'deployment-source-commit',
+    aligned ? 'pass' : 'warn',
+    required.map((name) => `${name}=${deployment[name] ?? 'unavailable'}`).join(', ')
+  )
   return { host, checks }
 }
 

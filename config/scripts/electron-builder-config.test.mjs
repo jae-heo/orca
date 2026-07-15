@@ -163,12 +163,23 @@ describe('electron-builder config', () => {
     }
   })
 
-  it('isolates Neurorca packaging from official Orca', () => {
+  it('isolates Neurorca packaging from official Orca', async () => {
     const configPath = require.resolve('../electron-builder.config.cjs')
     const original = process.env.NEURORCA_BUILD
+    const originalCommit = process.env.NEURORCA_SOURCE_COMMIT
+    const originalProvenance = process.env.NEURORCA_PROVENANCE_FILE
+    const root = await mkdtemp(join(tmpdir(), 'neurorca-builder-provenance-'))
+    const provenancePath = join(root, 'neurorca-build-provenance.json')
+    const sourceCommit = '0123456789abcdef0123456789abcdef01234567'
     try {
+      await writeFile(
+        provenancePath,
+        JSON.stringify({ schemaVersion: 1, product: 'Neurorca', sourceCommit })
+      )
       delete require.cache[configPath]
       process.env.NEURORCA_BUILD = '1'
+      process.env.NEURORCA_SOURCE_COMMIT = sourceCommit
+      process.env.NEURORCA_PROVENANCE_FILE = provenancePath
       const neurorcaConfig = require('../electron-builder.config.cjs')
 
       expect(neurorcaConfig).toMatchObject({
@@ -177,7 +188,8 @@ describe('electron-builder config', () => {
         extraMetadata: {
           name: 'neurorca',
           productName: 'Neurorca',
-          neurorcaBuild: true
+          neurorcaBuild: true,
+          neurorcaSourceCommit: sourceCommit
         },
         dmg: { artifactName: 'neurorca-macos-${arch}.${ext}' },
         appImage: { artifactName: 'neurorca-linux-${arch}.${ext}' },
@@ -190,6 +202,10 @@ describe('electron-builder config', () => {
       expect(neurorcaConfig.mac.extraResources).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
+            from: provenancePath,
+            to: 'neurorca-build-provenance.json'
+          }),
+          expect.objectContaining({
             from: 'resources/darwin/bin/neurorca',
             to: 'bin/neurorca'
           })
@@ -201,8 +217,19 @@ describe('electron-builder config', () => {
       } else {
         process.env.NEURORCA_BUILD = original
       }
+      if (originalCommit === undefined) {
+        delete process.env.NEURORCA_SOURCE_COMMIT
+      } else {
+        process.env.NEURORCA_SOURCE_COMMIT = originalCommit
+      }
+      if (originalProvenance === undefined) {
+        delete process.env.NEURORCA_PROVENANCE_FILE
+      } else {
+        process.env.NEURORCA_PROVENANCE_FILE = originalProvenance
+      }
       delete require.cache[configPath]
       require('../electron-builder.config.cjs')
+      await rm(root, { recursive: true, force: true })
     }
   })
 

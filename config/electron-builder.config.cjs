@@ -1,4 +1,4 @@
-const { chmodSync, existsSync, readdirSync } = require('node:fs')
+const { chmodSync, existsSync, readFileSync, readdirSync } = require('node:fs')
 const { execFileSync } = require('node:child_process')
 const { join, resolve } = require('node:path')
 const electronBuilderNativeRebuild = require('./scripts/electron-builder-native-rebuild.cjs')
@@ -19,6 +19,20 @@ const productName = isNeurorcaBuild ? 'Neurorca' : 'Orca'
 const appId = isNeurorcaBuild ? 'com.neurocore.neurorca' : 'com.stablyai.orca'
 const unixCliName = isNeurorcaBuild ? 'neurorca' : 'orca'
 const linuxExecutableName = isNeurorcaBuild ? 'neurorca' : 'orca-ide'
+const neurorcaSourceCommit = process.env.NEURORCA_SOURCE_COMMIT
+const neurorcaProvenanceFile = process.env.NEURORCA_PROVENANCE_FILE
+if (isNeurorcaBuild) {
+  if (!/^[a-f0-9]{40}$/.test(neurorcaSourceCommit ?? '')) {
+    throw new Error('NEURORCA_SOURCE_COMMIT must be a full Git commit SHA.')
+  }
+  if (!neurorcaProvenanceFile || !existsSync(neurorcaProvenanceFile)) {
+    throw new Error('NEURORCA_PROVENANCE_FILE must point to the generated build provenance.')
+  }
+  const provenance = JSON.parse(readFileSync(neurorcaProvenanceFile, 'utf8'))
+  if (provenance.sourceCommit !== neurorcaSourceCommit) {
+    throw new Error('Neurorca provenance does not match NEURORCA_SOURCE_COMMIT.')
+  }
+}
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -36,7 +50,17 @@ const relayExtraResource = {
 // do not fall through to a developer checkout's node_modules.
 const packagedRuntimeNodeModuleResources = createPackagedRuntimeNodeModuleResources()
 
-const commonExtraResources = [relayExtraResource, ...packagedRuntimeNodeModuleResources]
+const neurorcaProvenanceResource = isNeurorcaBuild
+  ? {
+      from: neurorcaProvenanceFile,
+      to: 'neurorca-build-provenance.json'
+    }
+  : null
+const commonExtraResources = [
+  relayExtraResource,
+  ...packagedRuntimeNodeModuleResources,
+  ...(neurorcaProvenanceResource ? [neurorcaProvenanceResource] : [])
+]
 const macSpeechNativeResource = {
   from: 'node_modules/sherpa-onnx-darwin-${arch}',
   to: 'node_modules/sherpa-onnx-darwin-${arch}'
@@ -59,7 +83,8 @@ module.exports = {
         extraMetadata: {
           name: 'neurorca',
           productName: 'Neurorca',
-          neurorcaBuild: true
+          neurorcaBuild: true,
+          neurorcaSourceCommit
         }
       }
     : {}),

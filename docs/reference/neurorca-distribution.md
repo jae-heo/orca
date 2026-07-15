@@ -11,14 +11,20 @@ are part of the distribution contract, not optional local notes.
 
 ## Identity boundary
 
-Build with `NEURORCA_BUILD=1` (normally through the package scripts below).
-The resulting package uses:
+Build only through the package scripts below. They reject dirty, unpushed, or
+wrong-branch distribution builds and set the internal build variables. The
+resulting package uses:
 
 - product name `Neurorca`;
 - application ID `com.neurocore.neurorca`;
 - its own Electron user-data directory;
 - the `neurorca` shell command and Linux package name; and
 - no official Orca binary update feed.
+
+The Mac bundle also contains `neurorca-build-provenance.json`. Linux produces
+an AppImage plus a `.provenance.json` sidecar whose `artifactSha256` must match
+the AppImage. The `sourceCommit` in both platforms must be identical for one
+distribution.
 
 The last point is intentional. Installing an official Orca update directly
 over Neurorca would remove the local feature commits. Official updates enter
@@ -34,7 +40,8 @@ pnpm neurorca:sync
 
 The command fetches and merges `upstream/main`, then refreshes the two feature
 branches. It stops on conflicts so they can be reviewed instead of publishing
-a silently broken build.
+a silently broken build. Commit and push the reviewed result before building;
+the wrappers intentionally reject local-only commits.
 
 ## Build
 
@@ -76,6 +83,10 @@ pnpm neurorca:deploy:linux
 The Linux deploy command refuses to restart while any live terminal exists.
 Close those terminals and rerun it; do not bypass the guard merely to make an
 update finish sooner.
+
+The guarded Linux installer verifies the provenance sidecar before activation.
+If the AppImage bytes are already installed and only the sidecar is missing,
+it installs the metadata without restarting the service.
 
 The macOS build is locally signed/ad-hoc unless Apple release credentials are
 provided. A future automatic Neurorca binary-update feed must publish signed

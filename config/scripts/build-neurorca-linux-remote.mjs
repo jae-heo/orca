@@ -68,7 +68,7 @@ test "$(git rev-parse FETCH_HEAD)" = ${commit}
 git merge --ff-only FETCH_HEAD
 pnpm install --frozen-lockfile
 pnpm build:neurorca:linux
-sha256sum ${artifact}`
+sha256sum ${artifact} "${artifact}.provenance.json"`
 }
 
 export function buildNeurorcaLinuxRemote(options = {}) {

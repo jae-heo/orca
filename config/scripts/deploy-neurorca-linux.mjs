@@ -7,6 +7,7 @@ import {
   parseCommandJson,
   projectDir
 } from './neurorca-operations-config.mjs'
+import { parseNeurorcaProvenance } from './neurorca-build-provenance.mjs'
 
 const scriptsDir = import.meta.dirname
 const rootInstaller = join(scriptsDir, 'install-neurorca-linux-root.sh')
@@ -83,6 +84,14 @@ function remoteSha(host, filePath) {
   return hash
 }
 
+function remoteProvenance(host, filePath) {
+  const output = requireSuccess(
+    ssh(host, `cat ${shellQuote(filePath)}`),
+    `Provenance check for ${filePath}`
+  )
+  return parseNeurorcaProvenance(output, { requireArtifactSha: true })
+}
+
 function requireRemoteAppImage(host, filePath) {
   requireSuccess(
     ssh(
@@ -120,15 +129,40 @@ export function deployNeurorcaLinux(options = {}) {
   const config = loadNeurorcaOperationsConfig()
   const host = options.host ?? config.linux.defaultHost
   const artifact = options.artifact ?? config.linux.buildAppImage
+  const sidecar = `${artifact}${config.provenance.sidecarSuffix}`
+  const installedSidecar = `${config.linux.installedAppImage}${config.provenance.sidecarSuffix}`
   remoteStatus(host, config.linux.cliPath)
   requireRemoteAppImage(host, artifact)
   const artifactSha = remoteSha(host, artifact)
+  const artifactProvenance = remoteProvenance(host, sidecar)
+  if (artifactProvenance.artifactSha256 !== artifactSha) {
+    throw new Error('The AppImage checksum does not match its build provenance.')
+  }
   const installedSha = remoteSha(host, config.linux.installedAppImage)
   if (artifactSha === installedSha) {
-    return { host, artifact, artifactSha, installedSha, liveTerminals: null, changed: false }
+    try {
+      const installedProvenance = remoteProvenance(host, installedSidecar)
+      if (
+        installedProvenance.artifactSha256 === installedSha &&
+        installedProvenance.sourceCommit === artifactProvenance.sourceCommit
+      ) {
+        return {
+          host,
+          artifact,
+          artifactSha,
+          installedSha,
+          sourceCommit: artifactProvenance.sourceCommit,
+          liveTerminals: null,
+          changed: false
+        }
+      }
+    } catch {
+      // A matching legacy binary still needs its provenance sidecar installed.
+    }
   }
 
-  const liveTerminals = remoteTerminalCount(host, config.linux.cliPath)
+  const metadataOnly = artifactSha === installedSha
+  const liveTerminals = metadataOnly ? null : remoteTerminalCount(host, config.linux.cliPath)
   if (liveTerminals > 0 && !options.allowLiveTerminalLoss) {
     throw new Error(
       `Refusing to restart ${config.linux.serviceName}: ${liveTerminals} live terminal(s). ` +
@@ -149,7 +183,9 @@ export function deployNeurorcaLinux(options = {}) {
     'sudo',
     remoteScript,
     artifact,
+    sidecar,
     artifactSha,
+    artifactProvenance.sourceCommit,
     config.linux.serviceName,
     config.linux.installedAppImage,
     config.linux.cliPath,
@@ -172,7 +208,22 @@ export function deployNeurorcaLinux(options = {}) {
   if (finalSha !== artifactSha) {
     throw new Error('Remote AppImage checksum differs after activation.')
   }
-  return { host, artifact, artifactSha, installedSha: finalSha, liveTerminals, changed: true }
+  const finalProvenance = remoteProvenance(host, installedSidecar)
+  if (
+    finalProvenance.artifactSha256 !== finalSha ||
+    finalProvenance.sourceCommit !== artifactProvenance.sourceCommit
+  ) {
+    throw new Error('Installed Neurorca provenance differs after activation.')
+  }
+  return {
+    host,
+    artifact,
+    artifactSha,
+    installedSha: finalSha,
+    sourceCommit: finalProvenance.sourceCommit,
+    liveTerminals,
+    changed: true
+  }
 }
 
 export function main(argv = process.argv.slice(2)) {

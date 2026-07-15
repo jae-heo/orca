@@ -4,6 +4,10 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import {
+  cleanupNeurorcaBuildEnvironment,
+  createNeurorcaBuildEnvironment
+} from './neurorca-build-provenance.mjs'
 
 const projectDir = resolve(import.meta.dirname, '../..')
 const CLT_PACKAGE_IDS = [
@@ -63,8 +67,8 @@ function requireWorkingCltCommand(command, args, label) {
   return result.stdout
 }
 
-function prepareBuildEnvironment() {
-  const env = { ...process.env, NEURORCA_BUILD: '1' }
+function prepareBuildEnvironment(baseEnv) {
+  const env = { ...baseEnv }
   if (hasGypDiscoverableDeveloperToolsVersion()) {
     return { env, temporaryDirectory: null }
   }
@@ -95,11 +99,14 @@ export function main() {
     throw new Error('The Neurorca macOS build command must run on macOS.')
   }
 
-  const { env, temporaryDirectory } = prepareBuildEnvironment()
+  const provenanceBuild = createNeurorcaBuildEnvironment()
+  let temporaryDirectory = null
   try {
+    const prepared = prepareBuildEnvironment(provenanceBuild.env)
+    temporaryDirectory = prepared.temporaryDirectory
     const result = spawnSync('pnpm', ['run', 'build:mac'], {
       cwd: projectDir,
-      env,
+      env: prepared.env,
       stdio: 'inherit'
     })
     if (result.error) {
@@ -112,6 +119,7 @@ export function main() {
     if (temporaryDirectory) {
       rmSync(temporaryDirectory, { recursive: true, force: true })
     }
+    cleanupNeurorcaBuildEnvironment(provenanceBuild.temporaryDirectory)
   }
 }
 
